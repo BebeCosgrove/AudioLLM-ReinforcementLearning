@@ -218,7 +218,6 @@ def run():
     reference_model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
         model_id,
         device_map="auto",
-        # device_map= {"": "cpu"} ,
         torch_dtype=torch.bfloat16
         
     )
@@ -254,52 +253,8 @@ def run():
         collate_fn= collator
     )
 
-    #chosen conversation
-    # chosen_audio_conv = [[
-    # {
-    #     "role": "user",
-    #     "content": [
-    #         {"type": "text", "text": "Describe what is happening in the audio."},
-    #         {"type": "audio", "path": "/data/not_backed_up/cosgrv/af3_project/data/3-146965-A-5.wav"},
-    #     ],
-    # },
-    # {
-    #     "role": "assistant",
-    #     "content": [{"type": "text", "text": "A cat is meowing."}],
-    # }
-    # ]]
-
-    # #chosen conversation but with perturbed audio
-    # chosen_perturbed_conv = [[
-    # {
-    #     "role": "user",
-    #     "content": [
-    #         {"type": "text", "text": "Describe what is happening in the audio."},
-    #         {"type": "audio", "path": "/data/not_backed_up/cosgrv/af3_project/debug/perturbation_samples/test/test_pert.wav"},
-    #     ],
-    # },
-    # {
-    #     "role": "assistant",
-    #     "content": [{"type": "text", "text": "A cat is meowing."}],
-    # }
-    # ]]
-
-    # #rejected conversation
-    # rejected_conv = [[
-    # {
-    #     "role": "user",
-    #     "content": [
-    #         {"type": "text", "text": "Describe what is happening in the audio."},
-    #         {"type": "audio", "path": "/data/not_backed_up/cosgrv/af3_project/data/3-146965-A-5.wav"},
-    #     ],
-    # },
-    # {
-    #     "role": "assistant",
-    #     "content": [{"type": "text", "text": "A train is running."}],
-    # }
-    # ]]
-
-    #optimizer with 1e-7 learning rate
+    
+    #optimizer with 1e-6 learning rate
     optimizer = torch.optim.AdamW(policy_model.parameters(), lr=1e-6)
 
     #evaluates reference and trains the policy
@@ -307,31 +262,7 @@ def run():
     policy_model.train()
     
 
-    # chosen_inputs = processor.apply_chat_template(
-    #         chosen_audio_conv,
-    #         tokenize=True,
-    #         add_generation_prompt=False,
-    #         return_dict=True,
-    #         output_labels = True
-    #     ).to(device)
-
-    # rejected_inputs = processor.apply_chat_template(
-    #     rejected_conv,
-    #     tokenize=True,
-    #     add_generation_prompt=False,
-    #     return_dict=True,
-    #     output_labels = True
-    # ).to(device)
-
-    # chosen_perturbed_inputs = processor.apply_chat_template(
-    #     chosen_perturbed_conv,
-    #     tokenize=True,
-    #     add_generation_prompt=False,
-    #     return_dict=True,
-    #     output_labels = True
-    # ).to(device)
-
-    for step in range(10):
+    for epoch in range(10):
         for batch in loader:
 
             chosen_inputs = batch["chosen"]
@@ -349,40 +280,11 @@ def run():
             perturbed_inputs["input_features"] = (
                 perturbed_inputs["input_features"].to(torch.bfloat16)
             )
-        
-            # dtype = next(policy_model.parameters()).dtype
-
-            # chosen_inputs["input_features"] = chosen_inputs["input_features"].to(dtype)
-            # rejected_inputs["input_features"] = rejected_inputs["input_features"].to(dtype)
-            # chosen_perturbed_inputs["input_features"] = chosen_perturbed_inputs["input_features"].to(dtype)
-
-            # chosen_inputs_cpu = {
-            # k: v.cpu() if torch.is_tensor(v) else v
-            # for k, v in chosen_inputs.items()
-            # }
-
-            # chosen_perturbed_inputs_cpu = {
-            # k: v.cpu() if torch.is_tensor(v) else v
-            # for k, v in chosen_perturbed_inputs.items()
-            # }
-
-
-            # rejected_inputs_cpu = {
-            # k: v.cpu() if torch.is_tensor(v) else v
-            # for k, v in rejected_inputs.items()
-            # }
-
-            # chosen_inputs_cpu["input_features"] = chosen_inputs_cpu["input_features"].float()
-            # rejected_inputs_cpu["input_features"] = rejected_inputs_cpu["input_features"].float()
-            # chosen_perturbed_inputs_cpu["input_features"] = chosen_perturbed_inputs_cpu["input_features"].float()
 
             labels_chosen = chosen_inputs["labels"]
             labels_rejected = rejected_inputs["labels"]
             labels_perturbed = perturbed_inputs["labels"]
 
-            # labels_chosen_cpu = labels_chosen.cpu()
-            # labels_rejected_cpu = labels_rejected.cpu()
-            # labels_perturbed_cpu = labels_perturbed.cpu()
 
 
             #forward pass
@@ -415,10 +317,6 @@ def run():
             reference_perturbed_outputs.logits,
             labels_perturbed
             )
-
-            # reference_chosen_logps = reference_chosen_logps.to(device)
-            # reference_rejected_logps = reference_rejected_logps.to(device)
-            # reference_perturbed_logps = reference_perturbed_logps.to(device)
 
 
 
