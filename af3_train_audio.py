@@ -63,7 +63,7 @@ def get_sequence_logps(logits, labels):
 
     lengths = mask.sum(dim=-1)
 
-    return (token_logps * mask).sum(dim=-1) / lengths
+    return (token_logps * mask).sum(dim=-1)
 
 
 def run():
@@ -83,12 +83,11 @@ def run():
     #reference model
     reference_model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
         model_id,
-        device_map= {"": "cpu"} ,
-        torch_dtype=torch.float32
+        device_map="auto",
+        # device_map= {"": "cpu"} ,
+        torch_dtype=torch.bfloat16
         
     )
-
-    
 
     #chosen conversation
     chosen_audio_conv = [[
@@ -136,12 +135,11 @@ def run():
     ]]
 
     #optimizer with 1e-7 learning rate
-    optimizer = torch.optim.AdamW(policy_model.parameters(), lr=1e-5)
+    optimizer = torch.optim.AdamW(policy_model.parameters(), lr=1e-6)
 
     #evaluates reference and trains the policy
     reference_model.eval()
     policy_model.train()
-    
     
 
     chosen_inputs = processor.apply_chat_template(
@@ -175,34 +173,33 @@ def run():
         rejected_inputs["input_features"] = rejected_inputs["input_features"].to(dtype)
         chosen_perturbed_inputs["input_features"] = chosen_perturbed_inputs["input_features"].to(dtype)
 
-        chosen_inputs_cpu = {
-        k: v.cpu() if torch.is_tensor(v) else v
-        for k, v in chosen_inputs.items()
-        }
+        # chosen_inputs_cpu = {
+        # k: v.cpu() if torch.is_tensor(v) else v
+        # for k, v in chosen_inputs.items()
+        # }
 
-        chosen_perturbed_inputs_cpu = {
-        k: v.cpu() if torch.is_tensor(v) else v
-        for k, v in chosen_perturbed_inputs.items()
-        }
+        # chosen_perturbed_inputs_cpu = {
+        # k: v.cpu() if torch.is_tensor(v) else v
+        # for k, v in chosen_perturbed_inputs.items()
+        # }
 
 
-        rejected_inputs_cpu = {
-        k: v.cpu() if torch.is_tensor(v) else v
-        for k, v in rejected_inputs.items()
-        }
+        # rejected_inputs_cpu = {
+        # k: v.cpu() if torch.is_tensor(v) else v
+        # for k, v in rejected_inputs.items()
+        # }
 
-        chosen_inputs_cpu["input_features"] = chosen_inputs_cpu["input_features"].float()
-        rejected_inputs_cpu["input_features"] = rejected_inputs_cpu["input_features"].float()
-        chosen_perturbed_inputs_cpu["input_features"] = chosen_perturbed_inputs_cpu["input_features"].float()
+        # chosen_inputs_cpu["input_features"] = chosen_inputs_cpu["input_features"].float()
+        # rejected_inputs_cpu["input_features"] = rejected_inputs_cpu["input_features"].float()
+        # chosen_perturbed_inputs_cpu["input_features"] = chosen_perturbed_inputs_cpu["input_features"].float()
 
         labels_chosen = chosen_inputs["labels"]
         labels_rejected = rejected_inputs["labels"]
         labels_perturbed = chosen_perturbed_inputs["labels"]
 
-        labels_chosen_cpu = labels_chosen.cpu()
-        labels_rejected_cpu = labels_rejected.cpu()
-        labels_perturbed_cpu = labels_perturbed.cpu()
-
+        # labels_chosen_cpu = labels_chosen.cpu()
+        # labels_rejected_cpu = labels_rejected.cpu()
+        # labels_perturbed_cpu = labels_perturbed.cpu()
 
 
         #forward pass
@@ -210,10 +207,11 @@ def run():
         policy_rejected_outputs = policy_model(**rejected_inputs)
         policy_perturbed_outputs = policy_model(**chosen_perturbed_inputs)
 
+        #freezes reference model
         with torch.no_grad():
-            reference_chosen_outputs = reference_model(**chosen_inputs_cpu)
-            reference_rejected_outputs = reference_model(**rejected_inputs_cpu)
-            reference_perturbed_outputs = reference_model(**chosen_perturbed_inputs_cpu)
+            reference_chosen_outputs = reference_model(**chosen_inputs)
+            reference_rejected_outputs = reference_model(**rejected_inputs)
+            reference_perturbed_outputs = reference_model(**chosen_perturbed_inputs)
 
         #logps
         policy_chosen_logps = get_sequence_logps(policy_chosen_outputs.logits, labels_chosen)
@@ -222,22 +220,22 @@ def run():
 
         reference_chosen_logps = get_sequence_logps(
         reference_chosen_outputs.logits,
-        labels_chosen_cpu
+        labels_chosen
         )
 
         reference_rejected_logps = get_sequence_logps(
         reference_rejected_outputs.logits,
-        labels_rejected_cpu
+        labels_rejected
         )
 
         reference_perturbed_logps = get_sequence_logps(
         reference_perturbed_outputs.logits,
-        labels_perturbed_cpu
+        labels_perturbed
         )
 
-        reference_chosen_logps = reference_chosen_logps.to(device)
-        reference_rejected_logps = reference_rejected_logps.to(device)
-        reference_perturbed_logps = reference_perturbed_logps.to(device)
+        # reference_chosen_logps = reference_chosen_logps.to(device)
+        # reference_rejected_logps = reference_rejected_logps.to(device)
+        # reference_perturbed_logps = reference_perturbed_logps.to(device)
 
         response_margin = (
         policy_chosen_logps - policy_rejected_logps
@@ -247,8 +245,6 @@ def run():
         policy_chosen_logps - policy_perturbed_logps
         )
 
-        
-    
 
         # computing mdpo loss
         losses, chosen_rewards, rejected_rewards, perturbed_rewards = mdpo_loss(
@@ -274,53 +270,12 @@ def run():
         conv1 = policy_model.audio_tower.conv1.weight
 
 
-        
-
         del policy_chosen_outputs
         del policy_rejected_outputs
         del reference_chosen_outputs
         del reference_rejected_outputs
         del policy_perturbed_outputs
         del reference_perturbed_outputs
-
-
-
-    
-
-
-    #policy outputs
-    # policy_chosen_outputs = policy_model(**chosen_inputs)
-    # policy_rejected_outputs = policy_model(**rejected_inputs)
-
-    # #reference outputs
-    # with torch.no_grad():
-    #     reference_chosen_outputs = reference_model(**chosen_inputs)
-    #     reference_rejected_outputs = reference_model(**rejected_inputs)
-
-
-    # labels_chosen = chosen_inputs["labels"]
-    # labels_rejected = rejected_inputs["labels"]
-
-    # policy_chosen_logps = get_sequence_logps(policy_chosen_outputs.logits, labels_chosen)
-    # policy_rejected_logps = get_sequence_logps(policy_rejected_outputs.logits, labels_rejected)
-    # reference_chosen_logps = get_sequence_logps(reference_chosen_outputs.logits, labels_chosen)
-    # reference_rejected_logps = get_sequence_logps(reference_rejected_outputs.logits, labels_rejected)
-
-    # print(policy_chosen_logps - policy_rejected_logps)
-    # print(reference_chosen_logps - reference_rejected_logps)
-
-
-
-    # losses, chosen_rewards, rejected_rewards = mdpo_loss(
-    #     policy_chosen_logps,
-    #     policy_rejected_logps,
-    #     reference_chosen_logps,
-    #     reference_rejected_logps
-    # )
-
-    # print(chosen_rewards)
-    # print(rejected_rewards)
-
 
 
 
