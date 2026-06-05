@@ -128,6 +128,8 @@ class AudioMDPOCollator:
         add_generation_prompt=False
     )
 
+        print(chosen_inputs["labels"])
+
         return {
         "chosen": chosen_inputs,
         "rejected": rejected_inputs,
