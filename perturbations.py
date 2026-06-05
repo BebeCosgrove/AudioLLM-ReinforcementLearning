@@ -1197,7 +1197,7 @@ if __name__ == "__main__":
     # # --- CONFIG ---
     # clotho_audio_dir = "datasets/clotho_aqa/audio_files"
     output_base = "debug/perturbation_samples"
-    audio, sr = sf.read("/data/not_backed_up/cosgrv/af3_project/data/3-146965-A-5.wav")
+    audio, sr = sf.read("/data/not_backed_up/cosgrv/af3_project/data/_UvwGWvKmcg_1.wav")
 
     if len(audio.shape) > 1:
         audio = audio.mean(axis=1)
@@ -1226,7 +1226,7 @@ if __name__ == "__main__":
    
     
     pert_audio = apply_reverse(audio)
-    out_path = os.path.join(sample_folder, "test_pert.wav")
+    out_path = os.path.join(sample_folder, "test_pert1.wav")
     sf.write(out_path, pert_audio, sr)
     print(f"Saved")
     
