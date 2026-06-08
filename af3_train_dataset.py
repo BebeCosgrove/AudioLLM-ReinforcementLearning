@@ -119,6 +119,8 @@ class AudioMDPOCollator:
         output_labels=True,
         add_generation_prompt=False
     )
+        #import pdb; pdb.set_trace()
+        # set pdb here to understand the padding
 
         perturbed_inputs = self.processor.apply_chat_template(
         perturbed_convs,
@@ -128,7 +130,7 @@ class AudioMDPOCollator:
         add_generation_prompt=False
     )
 
-        print(chosen_inputs["labels"])
+        #print(chosen_inputs["labels"])
 
         return {
         "chosen": chosen_inputs,
@@ -202,6 +204,18 @@ def get_sequence_logps(logits, labels):
     return (token_logps * mask).sum(dim=-1)
 
 
+def find_assistant_start(input_ids, tokenizer):
+
+    assistant_token_id = tokenizer.encode(
+        "assistant",
+        add_special_tokens=False
+    )[0]
+
+    for i, token_id in enumerate(input_ids):
+        if token_id.item() == assistant_token_id:
+            return i + 2   # skip "assistant" and newline
+
+
 def run():
     device = "cuda"
     beta = 0.1
@@ -258,6 +272,7 @@ def run():
     
     #optimizer with 1e-6 learning rate
     optimizer = torch.optim.AdamW(policy_model.parameters(), lr=1e-6)
+    tokenizer = processor.tokenizer
 
     #evaluates reference and trains the policy
     reference_model.eval()
@@ -267,6 +282,7 @@ def run():
     for epoch in range(10):
         for batch in loader:
 
+            #gets the input sequence from that batch
             chosen_inputs = batch["chosen"]
             rejected_inputs = batch["rejected"]
             perturbed_inputs = batch["perturbed"] 
@@ -283,11 +299,54 @@ def run():
                 perturbed_inputs["input_features"].to(torch.bfloat16)
             )
 
-            labels_chosen = chosen_inputs["labels"]
-            labels_rejected = rejected_inputs["labels"]
-            labels_perturbed = perturbed_inputs["labels"]
+            #clones the labels and assigns all of them to -100
+            response_chosen_ids = chosen_inputs["input_ids"].clone()
+            response_chosen_ids[:] = -100
+
+            response_rejected_ids = rejected_inputs["input_ids"].clone()
+            response_rejected_ids[:] = -100
+
+            response_perturbed_ids = perturbed_inputs["input_ids"].clone()
+            response_perturbed_ids[:] = -100
 
 
+            #changes the cloned id holder so that only non -100 places are the response
+            for b in range(chosen_inputs["input_ids"].size(0)):
+
+                chosen_input_ids = chosen_inputs["input_ids"][b]
+                rejected_input_ids = rejected_inputs["input_ids"][b]
+                perturbed_input_ids = perturbed_inputs["input_ids"][b]
+
+                chosen_assistant_place = find_assistant_start(chosen_input_ids, tokenizer)
+                rejected_assistant_place = find_assistant_start(rejected_input_ids, tokenizer)
+                perturbed_assistant_place = find_assistant_start(perturbed_input_ids, tokenizer)
+
+                chosen_tokens = chosen_input_ids[chosen_assistant_place:]
+                response_chosen_ids[b, chosen_assistant_place:chosen_assistant_place + len(chosen_tokens)] = chosen_tokens
+
+        
+                rejected_tokens = rejected_input_ids[rejected_assistant_place:]
+                response_rejected_ids[b, rejected_assistant_place:rejected_assistant_place + len(rejected_tokens)] = rejected_tokens
+
+
+                perturbed_tokens = perturbed_input_ids[perturbed_assistant_place:]
+                response_perturbed_ids[b, perturbed_assistant_place:perturbed_assistant_place + len(perturbed_tokens)] = perturbed_tokens
+                
+            #shows that ids only contains the response and everything else is -100
+            for b in range(chosen_inputs["input_ids"].size(0)):
+                valid_tokens = response_chosen_ids[b]
+                valid_tokens = valid_tokens[valid_tokens != -100]
+                print(f"Chosen response {b}:", tokenizer.decode(valid_tokens))
+
+                valid_tokens = response_rejected_ids[b]
+                valid_tokens = valid_tokens[valid_tokens != -100]
+                print(f"Rejected response {b}:", tokenizer.decode(valid_tokens))
+
+                valid_tokens = response_perturbed_ids[b]
+                valid_tokens = valid_tokens[valid_tokens != -100]
+                print(f"Perturbed response {b}:", tokenizer.decode(valid_tokens))
+
+            # double check by pdb together.
 
             #forward pass
             policy_chosen_outputs = policy_model(**chosen_inputs)
@@ -301,23 +360,23 @@ def run():
                 reference_perturbed_outputs = reference_model(**perturbed_inputs)
 
             #logps
-            policy_chosen_logps = get_sequence_logps(policy_chosen_outputs.logits, labels_chosen)
-            policy_rejected_logps = get_sequence_logps(policy_rejected_outputs.logits, labels_rejected)
-            policy_perturbed_logps = get_sequence_logps(policy_perturbed_outputs.logits, labels_perturbed)
+            policy_chosen_logps = get_sequence_logps(policy_chosen_outputs.logits, response_chosen_ids)
+            policy_rejected_logps = get_sequence_logps(policy_rejected_outputs.logits, response_rejected_ids)
+            policy_perturbed_logps = get_sequence_logps(policy_perturbed_outputs.logits, response_perturbed_ids)
 
             reference_chosen_logps = get_sequence_logps(
             reference_chosen_outputs.logits,
-            labels_chosen
+            response_chosen_ids
             )
 
             reference_rejected_logps = get_sequence_logps(
             reference_rejected_outputs.logits,
-            labels_rejected
+            response_rejected_ids
             )
 
             reference_perturbed_logps = get_sequence_logps(
             reference_perturbed_outputs.logits,
-            labels_perturbed
+            response_perturbed_ids
             )
 
 
@@ -342,7 +401,6 @@ def run():
         
             
             optimizer.step()
-
 
 
             del policy_chosen_outputs
