@@ -205,15 +205,15 @@ def get_sequence_logps(logits, labels):
 
 
 def find_assistant_start(input_ids, tokenizer):
-
     assistant_token_id = tokenizer.encode(
         "assistant",
         add_special_tokens=False
     )[0]
 
-    for i, token_id in enumerate(input_ids):
-        if token_id.item() == assistant_token_id:
-            return i + 2   # skip "assistant" and newline
+    # Search from the end backwards — find the LAST occurrence
+    for i in range(len(input_ids) - 1, -1, -1):
+        if input_ids[i].item() == assistant_token_id:
+            return i + 2  # skip "assistant" and newline
 
 
 def run():
@@ -287,6 +287,11 @@ def run():
             rejected_inputs = batch["rejected"]
             perturbed_inputs = batch["perturbed"] 
 
+            # print(tokenizer.decode(chosen_inputs["input_ids"][0][268:275]))
+            # print(tokenizer.decode(chosen_inputs["input_ids"][1][268:275]))
+
+            #import pdb; pdb.set_trace()
+
             chosen_inputs["input_features"] = (
             chosen_inputs["input_features"].to(torch.bfloat16)
             )
@@ -333,20 +338,38 @@ def run():
                 response_perturbed_ids[b, perturbed_assistant_place:perturbed_assistant_place + len(perturbed_tokens)] = perturbed_tokens
                 
             #shows that ids only contains the response and everything else is -100
-            for b in range(chosen_inputs["input_ids"].size(0)):
-                valid_tokens = response_chosen_ids[b]
-                valid_tokens = valid_tokens[valid_tokens != -100]
-                print(f"Chosen response {b}:", tokenizer.decode(valid_tokens))
+            # for b in range(chosen_inputs["input_ids"].size(0)):
+            #     valid_tokens = response_chosen_ids[b]
+            #     valid_tokens = valid_tokens[valid_tokens != -100]
+            #     print(f"Chosen response {b}:", tokenizer.decode(valid_tokens))
 
-                valid_tokens = response_rejected_ids[b]
-                valid_tokens = valid_tokens[valid_tokens != -100]
-                print(f"Rejected response {b}:", tokenizer.decode(valid_tokens))
+            #     valid_tokens = response_rejected_ids[b]
+            #     valid_tokens = valid_tokens[valid_tokens != -100]
+            #     print(f"Rejected response {b}:", tokenizer.decode(valid_tokens))
 
-                valid_tokens = response_perturbed_ids[b]
-                valid_tokens = valid_tokens[valid_tokens != -100]
-                print(f"Perturbed response {b}:", tokenizer.decode(valid_tokens))
+            #     valid_tokens = response_perturbed_ids[b]
+            #     valid_tokens = valid_tokens[valid_tokens != -100]
+            #     print(f"Perturbed response {b}:", tokenizer.decode(valid_tokens))
 
             # double check by pdb together.
+                
+            print(policy_model.device)
+                
+            #pops labels and moves the tensors to cpu
+            chosen_inputs.pop("labels", None)
+            rejected_inputs.pop("labels", None)
+            perturbed_inputs.pop("labels", None)
+
+            chosen_inputs = {k: v.to(policy_model.device) if isinstance(v, torch.Tensor) else v 
+                             for k, v in chosen_inputs.items()}
+            rejected_inputs = {k: v.to(policy_model.device) if isinstance(v, torch.Tensor) else v 
+                               for k, v in rejected_inputs.items()}
+            perturbed_inputs = {k: v.to(policy_model.device) if isinstance(v, torch.Tensor) else v 
+                                for k, v in perturbed_inputs.items()}
+
+            response_chosen_ids = response_chosen_ids.to(policy_model.device)
+            response_rejected_ids = response_rejected_ids.to(policy_model.device)
+            response_perturbed_ids = response_perturbed_ids.to(policy_model.device)
 
             #forward pass
             policy_chosen_outputs = policy_model(**chosen_inputs)
@@ -393,7 +416,7 @@ def run():
 
             #gets average of the batches losses
             loss = losses.mean()
-            print(loss)
+            #print(loss)
 
             # backward + update
             optimizer.zero_grad()
