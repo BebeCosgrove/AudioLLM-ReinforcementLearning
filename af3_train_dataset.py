@@ -392,8 +392,7 @@ def run():
             #gets the input sequence from that batch
             chosen_inputs = batch["chosen"]
             rejected_inputs = batch["rejected"]
-            perturbed_inputs = batch["perturbed"] 
-            prompt_only = batch["prompt"] 
+            perturbed_inputs = batch["perturbed"]  
 
             # print(tokenizer.decode(chosen_inputs["input_ids"][0][268:275]))
             # print(tokenizer.decode(chosen_inputs["input_ids"][1][268:275]))
