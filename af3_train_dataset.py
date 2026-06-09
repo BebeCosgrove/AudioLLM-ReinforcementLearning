@@ -295,31 +295,8 @@ def get_sequence_logps(logits, labels):
         index=safe_labels.unsqueeze(-1)
     ).squeeze(-1)
 
-
-    lengths = mask.sum(dim=-1)
-
     return (token_logps * mask).sum(dim=-1)
 
-
-def find_assistant_start(input_ids, tokenizer):
-    assistant_token_id = tokenizer.encode(
-        "assistant",
-        add_special_tokens=False
-    )[0]
-
-    # Search from the end backwards — find the LAST occurrence
-    for i in range(len(input_ids) - 1, -1, -1):
-        if input_ids[i].item() == assistant_token_id:
-            return i + 2  # skip "assistant" and newline
-
-
-# #goes from end of labels and finds first index of the response
-# def find_response_start(labels, example):
-#     non_neg = (labels != -100).nonzero(as_tuple=True)[example]
-#     # find where the last continuous block starts
-#     for i in range(len(non_neg) - 1, -1, -1):
-#         if i == 0 or non_neg[i] - non_neg[i-1] > 1:
-#             return non_neg[i].item()
 
 
 def run():
@@ -410,62 +387,11 @@ def run():
             perturbed_inputs["input_features"] = (
                 perturbed_inputs["input_features"].to(torch.bfloat16)
             )
-
-            #clones the labels and assigns all of them to -100
-            response_chosen_ids = chosen_inputs["input_ids"].clone()
-            response_chosen_ids[:] = -100
-
-            response_rejected_ids = rejected_inputs["input_ids"].clone()
-            response_rejected_ids[:] = -100
-
-            response_perturbed_ids = perturbed_inputs["input_ids"].clone()
-            response_perturbed_ids[:] = -100
-
-
-            #changes the cloned id holder so that only non -100 places are the response
-            for b in range(chosen_inputs["input_ids"].size(0)):
-
-                chosen_input_ids = chosen_inputs["input_ids"][b]
-                rejected_input_ids = rejected_inputs["input_ids"][b]
-                perturbed_input_ids = perturbed_inputs["input_ids"][b]
-
-                chosen_assistant_place = find_assistant_start(chosen_input_ids, tokenizer)
-                rejected_assistant_place = find_assistant_start(rejected_input_ids, tokenizer)
-                perturbed_assistant_place = find_assistant_start(perturbed_input_ids, tokenizer)
-
-                chosen_tokens = chosen_input_ids[chosen_assistant_place:]
-                response_chosen_ids[b, chosen_assistant_place:chosen_assistant_place + len(chosen_tokens)] = chosen_tokens
-
-        
-                rejected_tokens = rejected_input_ids[rejected_assistant_place:]
-                response_rejected_ids[b, rejected_assistant_place:rejected_assistant_place + len(rejected_tokens)] = rejected_tokens
-
-
-                perturbed_tokens = perturbed_input_ids[perturbed_assistant_place:]
-                response_perturbed_ids[b, perturbed_assistant_place:perturbed_assistant_place + len(perturbed_tokens)] = perturbed_tokens
                 
-            #shows that ids only contains the response and everything else is -100
-            # for b in range(chosen_inputs["input_ids"].size(0)):
-            #     valid_tokens = response_chosen_ids[b]
-            #     valid_tokens = valid_tokens[valid_tokens != -100]
-            #     print(f"Chosen response {b}:", tokenizer.decode(valid_tokens))
-
-            #     valid_tokens = response_rejected_ids[b]
-            #     valid_tokens = valid_tokens[valid_tokens != -100]
-            #     print(f"Rejected response {b}:", tokenizer.decode(valid_tokens))
-
-            #     valid_tokens = response_perturbed_ids[b]
-            #     valid_tokens = valid_tokens[valid_tokens != -100]
-            #     print(f"Perturbed response {b}:", tokenizer.decode(valid_tokens))
-
-            # double check by pdb together.
-                
-            print(policy_model.device)
-                
-            #pops labels and moves the tensors to cpu
-            chosen_inputs.pop("labels", None)
-            rejected_inputs.pop("labels", None)
-            perturbed_inputs.pop("labels", None)
+            #pops labels and moves the tensors to gpu
+            # chosen_inputs.pop("labels", None)
+            # rejected_inputs.pop("labels", None)
+            # perturbed_inputs.pop("labels", None)
 
             chosen_inputs = {k: v.to(policy_model.device) if isinstance(v, torch.Tensor) else v 
                              for k, v in chosen_inputs.items()}
