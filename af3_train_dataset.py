@@ -26,6 +26,8 @@ class AudioMDPOCollator:
         chosen_convs = []
         rejected_convs = []
         perturbed_convs = []
+        prompt_convs = []
+        perturbed_prompt_convs = []
 
         for ex in examples:
 
@@ -104,6 +106,30 @@ class AudioMDPOCollator:
                 }
             ])
 
+            prompt_convs.append([
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Describe what is happening in the audio."},
+                        {"type": "audio", "path": ex["audio"]}
+                    ]
+                }
+            ])
+
+            perturbed_prompt_convs.append([
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Describe what is happening in the audio."},
+                        {
+                            "type": "audio",
+                            "path": ex["perturbed_audio"]
+                        }
+                    ]
+                }
+            ])
+
+        #import pdb; pdb.set_trace()
         chosen_inputs = self.processor.apply_chat_template(
         chosen_convs,
         tokenize=True,
@@ -119,9 +145,7 @@ class AudioMDPOCollator:
         output_labels=True,
         add_generation_prompt=False
     )
-        #import pdb; pdb.set_trace()
-        # set pdb here to understand the padding
-
+    
         perturbed_inputs = self.processor.apply_chat_template(
         perturbed_convs,
         tokenize=True,
@@ -129,8 +153,68 @@ class AudioMDPOCollator:
         output_labels=True,
         add_generation_prompt=False
     )
+        
+        prompt_inputs = self.processor.apply_chat_template(
+        prompt_convs,
+        tokenize=True,
+        return_dict=True,
+        add_generation_prompt=True
+    )
+        perturbed_prompt_inputs = self.processor.apply_chat_template(
+        perturbed_prompt_convs,
+        tokenize=True,
+        return_dict=True,
+        add_generation_prompt=True
+    )
 
-        #print(chosen_inputs["labels"])
+        #gets the index of the start of the response
+        prompt_lengths = prompt_inputs["attention_mask"].sum(dim=1)
+        perturbed_prompt_lengths = (perturbed_prompt_inputs["attention_mask"].sum(dim=1)
+                                    
+)
+        import pdb; pdb.set_trace()
+        
+        #makees a copy of chosen_inputs where everything is -100
+        chosen_labels = torch.full_like(
+        chosen_inputs["input_ids"],
+        -100
+    )
+        rejected_labels = torch.full_like(
+        rejected_inputs["input_ids"],
+        -100
+    )
+        perturbed_labels = torch.full_like(
+        perturbed_inputs["input_ids"],
+        -100
+    )
+        
+
+        #makes everything after response start their actual input_ids
+        for b in range(len(examples)):
+            start = prompt_lengths[b]
+
+            chosen_labels[b, start:] = (
+                chosen_inputs["input_ids"][b, start:]
+            )
+        for b in range(len(examples)):
+            start = prompt_lengths[b]
+
+            rejected_labels[b, start:] = (
+                rejected_inputs["input_ids"][b, start:]
+            )
+        for b in range(len(examples)):
+            start = perturbed_prompt_lengths[b]
+
+            perturbed_labels[b, start:] = (
+                perturbed_inputs["input_ids"][b, start:]
+            )
+
+        #assigns the labels to the new fixed labels that only have ids for the response
+        chosen_inputs["labels"] = chosen_labels
+        rejected_inputs["labels"] = rejected_labels
+        perturbed_inputs["labels"] = perturbed_labels
+
+
 
         return {
         "chosen": chosen_inputs,
@@ -216,10 +300,20 @@ def find_assistant_start(input_ids, tokenizer):
             return i + 2  # skip "assistant" and newline
 
 
+# #goes from end of labels and finds first index of the response
+# def find_response_start(labels, example):
+#     non_neg = (labels != -100).nonzero(as_tuple=True)[example]
+#     # find where the last continuous block starts
+#     for i in range(len(non_neg) - 1, -1, -1):
+#         if i == 0 or non_neg[i] - non_neg[i-1] > 1:
+#             return non_neg[i].item()
+
+
 def run():
     device = "cuda"
     beta = 0.1
 
+    
     
     model_id = "nvidia/audio-flamingo-3-hf"
     processor = AutoProcessor.from_pretrained(model_id)
@@ -286,6 +380,7 @@ def run():
             chosen_inputs = batch["chosen"]
             rejected_inputs = batch["rejected"]
             perturbed_inputs = batch["perturbed"] 
+            prompt_only = batch["prompt"] 
 
             # print(tokenizer.decode(chosen_inputs["input_ids"][0][268:275]))
             # print(tokenizer.decode(chosen_inputs["input_ids"][1][268:275]))
