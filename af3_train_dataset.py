@@ -172,9 +172,8 @@ class AudioMDPOCollator:
         perturbed_prompt_lengths = (perturbed_prompt_inputs["attention_mask"].sum(dim=1)
                                     
 )
-        import pdb; pdb.set_trace()
         
-        #makees a copy of chosen_inputs where everything is -100
+        #makes a copy of chosen_inputs where everything is -100
         chosen_labels = torch.full_like(
         chosen_inputs["input_ids"],
         -100
@@ -191,23 +190,37 @@ class AudioMDPOCollator:
 
         #makes everything after response start their actual input_ids
         for b in range(len(examples)):
-            start = prompt_lengths[b]
+            prompt_mask = prompt_inputs["attention_mask"][b]
 
-            chosen_labels[b, start:] = (
-                chosen_inputs["input_ids"][b, start:]
+            prompt_start = prompt_mask.nonzero()[0].item() # gets the index of where the padding stops
+
+            response_start = prompt_start + prompt_lengths[b]
+
+            chosen_labels[b, response_start:] = (
+                chosen_inputs["input_ids"][b, response_start:]
             )
         for b in range(len(examples)):
-            start = prompt_lengths[b]
+            prompt_mask = prompt_inputs["attention_mask"][b]
 
-            rejected_labels[b, start:] = (
-                rejected_inputs["input_ids"][b, start:]
+            prompt_start = prompt_mask.nonzero()[0].item()
+
+            response_start = prompt_start + prompt_lengths[b]
+
+            rejected_labels[b, response_start:] = (
+                rejected_inputs["input_ids"][b, response_start:]
             )
         for b in range(len(examples)):
-            start = perturbed_prompt_lengths[b]
+            prompt_mask = perturbed_prompt_inputs["attention_mask"][b]
 
-            perturbed_labels[b, start:] = (
-                perturbed_inputs["input_ids"][b, start:]
+            prompt_start = prompt_mask.nonzero()[0].item()
+
+            response_start = prompt_start + perturbed_prompt_lengths[b]
+
+            perturbed_labels[b, response_start:] = (
+                perturbed_inputs["input_ids"][b, response_start:]
             )
+
+        import pdb; pdb.set_trace()
 
         #assigns the labels to the new fixed labels that only have ids for the response
         chosen_inputs["labels"] = chosen_labels
