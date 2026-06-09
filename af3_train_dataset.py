@@ -167,7 +167,7 @@ class AudioMDPOCollator:
         add_generation_prompt=True
     )
 
-        #gets the index of the start of the response
+        #gets the length of the prompt
         prompt_lengths = prompt_inputs["attention_mask"].sum(dim=1)
         perturbed_prompt_lengths = (perturbed_prompt_inputs["attention_mask"].sum(dim=1)
                                     
@@ -188,16 +188,16 @@ class AudioMDPOCollator:
     )
         
 
-        #makes everything after response start their actual input_ids
+        #makes everything after response have their actual input_ids instead of -100
         for b in range(len(examples)):
-            prompt_mask = prompt_inputs["attention_mask"][b]
+            prompt_mask = prompt_inputs["attention_mask"][b] #gets the attention masks of the prompt
 
-            prompt_start = prompt_mask.nonzero()[0].item() # gets the index of where the padding stops
+            prompt_start = prompt_mask.nonzero()[0].item() # gets the index of where the padding stops, first occurence of a 1
 
-            response_start = prompt_start + prompt_lengths[b]
+            response_start = prompt_start + prompt_lengths[b] #gets where response is by starting from where prompt starts and adding the length of prompt
 
             chosen_labels[b, response_start:] = (
-                chosen_inputs["input_ids"][b, response_start:]
+                chosen_inputs["input_ids"][b, response_start:] 
             )
         for b in range(len(examples)):
             prompt_mask = prompt_inputs["attention_mask"][b]
