@@ -28,6 +28,8 @@ class AudioMDPOCollator:
         perturbed_convs = []
         prompt_convs = []
         perturbed_prompt_convs = []
+        chosen_response_convs = []
+        rejected_response_convs = []
 
         for ex in examples:
 
@@ -129,6 +131,32 @@ class AudioMDPOCollator:
                 }
             ])
 
+            chosen_response_convs.append([
+
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": ex["chosen"]
+                        }
+                    ]
+                }
+            ])
+
+            rejected_response_convs.append([
+
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": ex["rejected"]
+                        }
+                    ]
+                }
+            ])
+
         #import pdb; pdb.set_trace()
         chosen_inputs = self.processor.apply_chat_template(
         chosen_convs,
@@ -166,6 +194,30 @@ class AudioMDPOCollator:
         return_dict=True,
         add_generation_prompt=True
     )
+    #     chosen_response = self.processor.apply_chat_template(
+    #     chosen_response_convs,
+    #     tokenize=True,
+    #     return_dict=True,
+    #     add_generation_prompt=True
+    # )
+    #     rejected_response = self.processor.apply_chat_template(
+    #     rejected_response_convs,
+    #     tokenize=True,
+    #     return_dict=True,
+    #     add_generation_prompt=True
+    # )
+        # prompt_length = prompt_inputs['input_ids'].shape[1]
+        # perturbed_prompt_length = perturbed_prompt_inputs['input_ids'].shape[1]
+
+        # chosen_response_length = chosen_response['input_ids'].shape[1]
+        # rejected_response_length = rejected_response['input_ids'].shape[1]
+
+        
+
+
+
+        import pdb; pdb.set_trace()
+        
 
         #gets the length of the prompt
         prompt_lengths = prompt_inputs["attention_mask"].sum(dim=1)
@@ -220,7 +272,7 @@ class AudioMDPOCollator:
                 perturbed_inputs["input_ids"][b, response_start:]
             )
 
-        import pdb; pdb.set_trace()
+        
 
         #assigns the labels to the new fixed labels that only have ids for the response
         chosen_inputs["labels"] = chosen_labels
