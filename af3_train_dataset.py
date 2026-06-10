@@ -335,12 +335,16 @@ def mdpo_loss(
 
 
 def get_sequence_logps(logits, labels):
-    #convert logits -> log probabilities
-    log_probs = torch.log_softmax(logits.float(), dim=-1)
+    #makes the logits and labels aligned from the shift
+    shift_logits = logits[:, :-1, :]
+    shift_labels = labels[:, 1:]
 
-    mask = labels != -100
-    safe_labels = labels.clone()
-    safe_labels[~mask] = 0 
+    #convert logits -> log probabilities
+    log_probs = torch.log_softmax(shift_logits.float(), dim=-1)
+
+    mask = shift_labels != -100 # bool for where tokens are/ aren't -100
+    safe_labels = shift_labels.clone()
+    safe_labels[~mask] = 0 # replaces places that were -100 with a 0 because gather uses 0
 
     token_logps = log_probs.gather(
         dim=-1,
