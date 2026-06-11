@@ -1190,43 +1190,84 @@ def generate_compact_perturbation_list(exclude: List[str] = None) -> str:
 # =============================================================================
 
 if __name__ == "__main__":
+    import json
     import os
-    import random
+    import librosa
     import soundfile as sf
 
-    # # --- CONFIG ---
-    # clotho_audio_dir = "datasets/clotho_aqa/audio_files"
-    output_base = "debug/perturbation_samples"
-    audio, sr = sf.read("/data/not_backed_up/cosgrv/af3_project/data/_UvwGWvKmcg_1.wav")
 
-    if len(audio.shape) > 1:
-        audio = audio.mean(axis=1)
+    INPUT_JSON = "datasets/ah_existence/train.json"
+    OUTPUT_JSON = "datasets/ah_existence/train_with_reverse.json"
 
-    audio = audio.astype("float32")
+    OUTPUT_AUDIO_DIR = "datasets/ah_existence/perturbed_audio"
+    os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
 
-    audio = librosa.resample(audio, orig_sr=sr, target_sr=16000)
-    sr = 16000
+    with open(INPUT_JSON) as f:
+        data = json.load(f)
 
-    # Pick a random file
-    # all_files = [f for f in os.listdir(clotho_audio_dir) if f.lower().endswith(".wav")]
-    # sample_file = random.choice(all_files)
-    # sample_name = os.path.splitext(sample_file)[0]
+    new_data = []
+
+    pert_type = Perturbation.NO_AUDIO
+    setting = "full"
+
+    pert_fn = get_perturbation(pert_type, setting, sr=16000)
+
     
 
-    # Load audio
-    #audio, _ = librosa.load(os.path.join(clotho_audio_dir, sample_file), sr=sr)
+    for item in data:
 
-    # Create a subfolder for this sample
-    sample_folder = os.path.join(output_base, "test")
-    os.makedirs(sample_folder, exist_ok=True)
+        audio_path = item["path"]
 
-    # Save the original
+        try:
+            audio, _ = librosa.load(audio_path, sr=16000)
+        except Exception as e:
+            print(f"Failed: {audio_path}")
+            continue
+
+        pert_audio = pert_fn(audio)
+
+        stem = os.path.splitext(os.path.basename(audio_path))[0]
+
+        pert_path = os.path.join(
+            OUTPUT_AUDIO_DIR,
+            f"{stem}_{pert_type.name.lower()}.wav"
+        )
+
+        sf.write(pert_path, pert_audio, 16000)
+
+        new_item = item.copy()
+        new_item["perturbed_path"] = pert_path
+        new_item["perturbation"] = pert_type.name
+        new_item["perturbation_setting"] = setting
+
+        new_data.append(new_item)
+
+    with open(OUTPUT_JSON, "w") as f:
+        json.dump(new_data, f, indent=2)
+
+    print(f"Saved {len(new_data)} examples")
+
+    # # # --- CONFIG ---
+    # # clotho_audio_dir = "datasets/clotho_aqa/audio_files"
+    # output_base = "debug/perturbation_samples"
+    # audio, sr = sf.read("/data/not_backed_up/cosgrv/af3_project/data/_UvwGWvKmcg_1.wav")
+
+    # if len(audio.shape) > 1:
+    #     audio = audio.mean(axis=1)
+
+    # audio = audio.astype("float32")
+
+    # audio = librosa.resample(audio, orig_sr=sr, target_sr=16000)
+    # sr = 16000
+
+    # # Create a subfolder for this sample
+    # sample_folder = os.path.join(output_base, "test")
+    # os.makedirs(sample_folder, exist_ok=True)
+
+    # # Save the original
     
-
-   
-    
-    pert_audio = apply_reverse(audio)
-    out_path = os.path.join(sample_folder, "test_pert1.wav")
-    sf.write(out_path, pert_audio, sr)
-    print(f"Saved")
+    # pert_audio = apply_reverse(audio)
+    # out_path = os.path.join(sample_folder, "test_pert1.wav")
+    # sf.write(out_path, pert_audio, sr)
+    # print(f"Saved")
     
