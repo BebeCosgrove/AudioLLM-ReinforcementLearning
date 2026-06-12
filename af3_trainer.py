@@ -161,7 +161,7 @@ class AudioMDPOCollator:
                     "content": [
                         {
                             "type": "text",
-                            "text": ex["rejected"] # NEED TO FIX THIS LATER ON WITH DATASET AND MAKING ENTRIES FOR WRONG ANSWER
+                            "text": ex["rejected"]
                         }
                     ]
                 }
