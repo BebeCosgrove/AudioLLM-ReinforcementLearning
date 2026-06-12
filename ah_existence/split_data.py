@@ -1,5 +1,6 @@
 import json
 import random
+from collections import defaultdict
 
 INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/no_audio_ah_existence.json"
 
@@ -11,20 +12,38 @@ TEST_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datas
 with open(INPUT_JSON) as f:
     data = json.load(f)
 
-# Shuffle reproducibly
+# Group by audio file
+groups = defaultdict(list)
+
+for item in data:
+    groups[item["path"]].append(item)
+
+paths = list(groups.keys())
+
 random.seed(42)
-random.shuffle(data)
+random.shuffle(paths)
 
-n = len(data)
+n_paths = len(paths)
 
-train_end = int(0.8 * n)
-val_end = int(0.9 * n)
+train_end = int(0.8 * n_paths)
+val_end = int(0.9 * n_paths)
 
-train_data = data[:train_end]
-val_data = data[train_end:val_end]
-test_data = data[val_end:]
+train_paths = set(paths[:train_end])
+val_paths = set(paths[train_end:val_end])
+test_paths = set(paths[val_end:])
 
-# Save splits
+train_data = []
+val_data = []
+test_data = []
+
+for path, examples in groups.items():
+    if path in train_paths:
+        train_data.extend(examples)
+    elif path in val_paths:
+        val_data.extend(examples)
+    else:
+        test_data.extend(examples)
+
 with open(TRAIN_JSON, "w") as f:
     json.dump(train_data, f, indent=2)
 
@@ -34,6 +53,10 @@ with open(VAL_JSON, "w") as f:
 with open(TEST_JSON, "w") as f:
     json.dump(test_data, f, indent=2)
 
-print(f"Train: {len(train_data)}")
-print(f"Val:   {len(val_data)}")
-print(f"Test:  {len(test_data)}")
+print(f"Train: {len(train_data)} examples")
+print(f"Val:   {len(val_data)} examples")
+print(f"Test:  {len(test_data)} examples")
+
+print(f"Unique train audio: {len(train_paths)}")
+print(f"Unique val audio:   {len(val_paths)}")
+print(f"Unique test audio:  {len(test_paths)}")
