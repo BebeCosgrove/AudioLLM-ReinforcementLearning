@@ -1249,6 +1249,16 @@ if __name__ == "__main__":
         new_item["perturbation"] = pert_type.name
         new_item["perturbation_setting"] = setting
 
+        # Add rejected as opposite of ground truth
+        ground_truth = item["text"].lower().strip()
+        if ground_truth == "yes":
+            new_item["rejected"] = "no"
+        elif ground_truth == "no":
+            new_item["rejected"] = "yes"
+        else:
+            # For non yes/no answers keep original for now
+            new_item["rejected"] = item["text"]
+
         new_data.append(new_item)
 
     with open(OUTPUT_JSON, "w") as f:
