@@ -367,10 +367,77 @@ def get_sequence_logps(logits, labels):
     return (token_logps * mask).sum(dim=-1)
 
 
+def evaluate(model, processor, dataset):
+    correct = 0
+    BASE_DIR = "/data/not_backed_up/cosgrv/af3_project/ah_existence"
+    for ex in dataset:
+        
+        audio_path = os.path.join(BASE_DIR, ex["path"])
+            
+        audio = librosa.load(audio_path, sr=16000, mono=True)[0]
+    
+        conv = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": ex["Q"]
+                    },
+                    {
+                        "type": "audio",
+                        "path": audio
+                    }
+                ]
+            }
+        ]
+
+        inputs = processor.apply_chat_template(
+            conv,
+            tokenize=True,
+            return_dict=True,
+            add_generation_prompt=True
+        )
+
+        inputs = {k: v.to(model.device) for k, v in inputs.items()}
+
+        # Cast input_features to match model dtype
+        inputs["input_features"] = inputs["input_features"].to(torch.bfloat16)
+
+        output_ids = model.generate(**inputs, max_new_tokens=16, do_sample=False)
+
+        # pred = processor.tokenizer.decode(
+        #     output_ids[0],
+        #     skip_special_tokens=True
+        # )
+
+        gt = ex["text"]
+
+        response_ids = output_ids[:, inputs["input_ids"].shape[1]:]
+        pred = processor.tokenizer.decode(response_ids[0], skip_special_tokens=True)
+
+        if pred.strip().lower() == gt.strip().lower():
+            correct += 1
+
+    return correct / len(dataset)
+
+
 
 def run():
     device = "cuda"
     beta = 0.1
+
+    wandb.init(
+        project="af3-mdpo",
+        config={
+            "beta": beta,
+            "lr": 5e-6,
+            "batch_size": 2,
+            "epochs": 2,
+            "lora_r": 8,
+            "lora_alpha": 16,
+        }
+    )
 
     lora_config = LoraConfig(
     r=8,                    # rank — smaller = fewer params, less expressive
@@ -406,7 +473,10 @@ def run():
     with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_train.json") as f:
         data = json.load(f)
 
-    data = data[:2000] # REMEMBER TO FIX
+    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_val.json") as f:
+        val_data = json.load(f)
+
+    data = data[:1000] # REMEMBER TO FIX
 
 
     #gets train dataset to pytorch form
@@ -428,12 +498,12 @@ def run():
     optimizer = torch.optim.AdamW(policy_model.parameters(), lr=5e-6)
     tokenizer = processor.tokenizer
 
-    #evaluates reference and trains the policy
-    #reference_model.eval()
-    policy_model.train()
     
 
     for epoch in range(2):
+        #training mode
+        policy_model.train()
+
         for batch in loader:
             print(f"[Start] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
@@ -524,6 +594,15 @@ def run():
                 f"Perturbed reward: {perturbed_reward_mean:.4f}")
             print(f"[After loss] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
+            wandb.log({
+                "epoch": epoch,
+                "loss": loss.item(),
+                "chosen_reward": chosen_reward_mean,
+                "rejected_reward": rejected_reward_mean,
+                "perturbed_reward": perturbed_reward_mean,
+                "reward_margin": chosen_reward_mean - rejected_reward_mean,
+            })
+
             # backward + update
             optimizer.zero_grad()
             loss.backward()
@@ -543,8 +622,25 @@ def run():
 
             print(f"[After cleanup] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
+        policy_model.eval()
+        
+
+        val_acc = evaluate(
+        policy_model,
+        processor,
+        val_data
+        )
+
+        wandb.log({
+        "epoch": epoch,
+        "val_accuracy": val_acc,
+        })
+        
+
     policy_model.save_pretrained("/data/not_backed_up/cosgrv/af3_project/mdpo_runs/checkpoint-final")
     processor.save_pretrained("/data/not_backed_up/cosgrv//af3_project/mdpo_runs/checkpoint-final")
+
+    wandb.finish()
 
 
 
