@@ -5,6 +5,9 @@ from torch.utils.data import DataLoader
 import json
 import librosa
 import os
+import peft
+from peft import LoraConfig, get_peft_model
+import wandb
 
 
 #make dataset into pytorch dataset
@@ -350,7 +353,7 @@ def get_sequence_logps(logits, labels):
     shift_labels = labels[:, 1:]
 
     #convert logits -> log probabilities
-    log_probs = torch.log_softmax(shift_logits.float(), dim=-1)
+    log_probs = torch.log_softmax(shift_logits, dim=-1)
 
     mask = shift_labels != -100 # bool for where tokens are/ aren't -100
     safe_labels = shift_labels.clone()
@@ -369,6 +372,14 @@ def run():
     device = "cuda"
     beta = 0.1
 
+    lora_config = LoraConfig(
+    r=8,                    # rank — smaller = fewer params, less expressive
+    lora_alpha=16,          # scaling factor
+    target_modules=["q_proj", "v_proj"],  # which layers to apply LoRA to
+    lora_dropout=0.05,
+    bias="none"
+)
+
     
     
     model_id = "nvidia/audio-flamingo-3-hf"
@@ -380,18 +391,22 @@ def run():
         torch_dtype=torch.bfloat16
     )
 
+    policy_model = get_peft_model(policy_model, lora_config)
+
     #reference model
-    reference_model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
-        model_id,
-        device_map="auto",
-        torch_dtype=torch.bfloat16
+    # reference_model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
+    #     model_id,
+    #     device_map="auto",
+    #     torch_dtype=torch.bfloat16
         
-    )
+    # )
 
     #example dataset
 
     with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_train.json") as f:
         data = json.load(f)
+
+    data = data[:2000] # REMEMBER TO FIX
 
 
     #gets train dataset to pytorch form
@@ -403,7 +418,7 @@ def run():
     # get dataloader
     loader = DataLoader(
         train_dataset,
-        batch_size=4,
+        batch_size=2,
         shuffle=True,
         collate_fn= collator
     )
@@ -414,12 +429,13 @@ def run():
     tokenizer = processor.tokenizer
 
     #evaluates reference and trains the policy
-    reference_model.eval()
+    #reference_model.eval()
     policy_model.train()
     
 
-    for epoch in range(50):
+    for epoch in range(2):
         for batch in loader:
+            print(f"[Start] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
             #gets the input sequence from that batch
             chosen_inputs = batch["chosen"]
@@ -466,11 +482,14 @@ def run():
             policy_rejected_outputs = policy_model(**rejected_inputs)
             policy_perturbed_outputs = policy_model(**perturbed_inputs)
 
+            print(f"[After forward] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
+
             #freezes reference model
-            with torch.no_grad():
-                reference_chosen_outputs = reference_model(**chosen_inputs)
-                reference_rejected_outputs = reference_model(**rejected_inputs)
-                reference_perturbed_outputs = reference_model(**perturbed_inputs)
+            with policy_model.disable_adapter():
+                with torch.no_grad():
+                    reference_chosen_outputs = policy_model(**chosen_inputs)
+                    reference_rejected_outputs = policy_model(**rejected_inputs)
+                    reference_perturbed_outputs = policy_model(**perturbed_inputs)
 
             #logps
             policy_chosen_logps = get_sequence_logps(policy_chosen_outputs.logits, chosen_labels)
@@ -503,21 +522,29 @@ def run():
                 f"Chosen reward: {chosen_reward_mean:.4f} | "
                 f"Rejected reward: {rejected_reward_mean:.4f} | "
                 f"Perturbed reward: {perturbed_reward_mean:.4f}")
+            print(f"[After loss] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
             # backward + update
             optimizer.zero_grad()
             loss.backward()
+            print(f"[After step] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
         
             
             optimizer.step()
 
+            del policy_chosen_outputs, policy_rejected_outputs, policy_perturbed_outputs
+            del reference_chosen_outputs, reference_rejected_outputs, reference_perturbed_outputs
+            del losses, chosen_rewards, rejected_rewards, perturbed_rewards, loss
+            del policy_chosen_logps, policy_rejected_logps, policy_perturbed_logps
+            del reference_chosen_logps, reference_rejected_logps, reference_perturbed_logps
+            del chosen_labels, rejected_labels, perturbed_labels
+            del chosen_inputs, rejected_inputs, perturbed_inputs
+            torch.cuda.empty_cache()
 
-            del policy_chosen_outputs
-            del policy_rejected_outputs
-            del reference_chosen_outputs
-            del reference_rejected_outputs
-            del policy_perturbed_outputs
-            del reference_perturbed_outputs
+            print(f"[After cleanup] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
+
+    policy_model.save_pretrained("/data/not_backed_up/cosgrv/af3_project/mdpo_runs/checkpoint-final")
+    processor.save_pretrained("/data/not_backed_up/cosgrv//af3_project/mdpo_runs/checkpoint-final")
 
 
 
