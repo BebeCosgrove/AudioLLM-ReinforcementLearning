@@ -72,7 +72,7 @@ def run_evaluation():
     with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_test.json") as f:
         data = json.load(f)
 
-    data = data[:100]
+    data = data[:1000]
 
 
     baseline_model = AudioFlamingo3ForConditionalGeneration.from_pretrained(

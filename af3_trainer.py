@@ -460,15 +460,6 @@ def run():
 
     policy_model = get_peft_model(policy_model, lora_config)
 
-    #reference model
-    # reference_model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
-    #     model_id,
-    #     device_map="auto",
-    #     torch_dtype=torch.bfloat16
-        
-    # )
-
-    #example dataset
 
     with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_train.json") as f:
         data = json.load(f)
@@ -476,7 +467,7 @@ def run():
     with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_val.json") as f:
         val_data = json.load(f)
 
-    data = data[:1000] # REMEMBER TO FIX
+    # data = data[:2000] # REMEMBER TO FIX
 
 
     #gets train dataset to pytorch form
@@ -488,7 +479,7 @@ def run():
     # get dataloader
     loader = DataLoader(
         train_dataset,
-        batch_size=2,
+        batch_size=4,
         shuffle=True,
         collate_fn= collator
     )
@@ -496,11 +487,10 @@ def run():
     
     #optimizer with 1e-6 learning rate
     optimizer = torch.optim.AdamW(policy_model.parameters(), lr=5e-6)
-    tokenizer = processor.tokenizer
 
     
 
-    for epoch in range(2):
+    for epoch in range(4):
         #training mode
         policy_model.train()
 
@@ -511,11 +501,6 @@ def run():
             chosen_inputs = batch["chosen"]
             rejected_inputs = batch["rejected"]
             perturbed_inputs = batch["perturbed"]  
-
-            # print(tokenizer.decode(chosen_inputs["input_ids"][0][268:275]))
-            # print(tokenizer.decode(chosen_inputs["input_ids"][1][268:275]))
-
-            #import pdb; pdb.set_trace()
 
             chosen_inputs["input_features"] = (
             chosen_inputs["input_features"].to(torch.bfloat16)
