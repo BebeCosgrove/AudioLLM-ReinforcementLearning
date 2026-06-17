@@ -207,50 +207,27 @@ class AudioMDPOCollator:
         return_dict=True,
         add_generation_prompt=True
     )
-    #     chosen_response = self.processor.apply_chat_template(
-    #     chosen_response_convs,
-    #     tokenize=True,
-    #     return_dict=True,
-    #     add_generation_prompt=True
-    # )
-    #     rejected_response = self.processor.apply_chat_template(
-    #     rejected_response_convs,
-    #     tokenize=True,
-    #     return_dict=True,
-    #     add_generation_prompt=True
-    # )
-        # prompt_length = prompt_inputs['input_ids'].shape[1]
-        # perturbed_prompt_length = perturbed_prompt_inputs['input_ids'].shape[1]
-
-        # chosen_response_length = chosen_response['input_ids'].shape[1]
-        # rejected_response_length = rejected_response['input_ids'].shape[1]
-
-        
-
-
-
-        
-        
+    
 
         #gets the length of the prompt
         prompt_lengths = prompt_inputs["attention_mask"].sum(dim=1)
         perturbed_prompt_lengths = (perturbed_prompt_inputs["attention_mask"].sum(dim=1)
                                     
-)
+        )
         
         #makes a copy of chosen_inputs where everything is -100
         chosen_labels = torch.full_like(
         chosen_inputs["input_ids"],
         -100
-    )
+        )
         rejected_labels = torch.full_like(
         rejected_inputs["input_ids"],
         -100
-    )
+        )
         perturbed_labels = torch.full_like(
         perturbed_inputs["input_ids"],
         -100
-    )
+        )
         
 
         #makes everything after response have their actual input_ids instead of -100
@@ -280,18 +257,6 @@ class AudioMDPOCollator:
         chosen_inputs["labels"] = chosen_labels
         rejected_inputs["labels"] = rejected_labels
         perturbed_inputs["labels"] = perturbed_labels
-        
-        # import pdb; pdb.set_trace()
-
-        # for b in range(len(chosen_labels)):
-        #     c_valid = chosen_labels[b][chosen_labels[b] != -100]
-        #     r_valid = rejected_labels[b][rejected_labels[b] != -100]
-        #     print(ex["text"])    # what is the ground truth?
-        #     print(ex["rejected"])
-        #     print(f"Sample {b} chosen:", self.processor.tokenizer.decode(c_valid))
-        #     print(f"Sample {b} rejected:", self.processor.tokenizer.decode(r_valid))
-        #     print(f"Chosen non-100 count:", len(c_valid))
-        #     print(f"Rejected non-100 count:", len(r_valid))
 
 
         return {
@@ -466,8 +431,6 @@ def run():
 
     with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_val.json") as f:
         val_data = json.load(f)
-
-    # data = data[:2000] # REMEMBER TO FIX
 
 
     #gets train dataset to pytorch form
