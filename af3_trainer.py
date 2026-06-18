@@ -273,7 +273,7 @@ def mdpo_loss(
     reference_chosen_logps: torch.FloatTensor,
     reference_rejected_logps: torch.FloatTensor, 
     reference_perturbed_chosen_logps: torch.FloatTensor,
-    beta = 0.5,
+    beta = 0.1,
     reference_free: bool = False):
 
     pi_logratios = policy_chosen_logps - policy_rejected_logps
@@ -433,6 +433,7 @@ def run():
         val_data = json.load(f)
 
 
+
     #gets train dataset to pytorch form
     train_dataset = AudioDPODataset(data)
 
@@ -442,7 +443,7 @@ def run():
     # get dataloader
     loader = DataLoader(
         train_dataset,
-        batch_size=4,
+        batch_size=8,
         shuffle=True,
         collate_fn= collator
     )
@@ -453,7 +454,7 @@ def run():
 
     
 
-    for epoch in range(4):
+    for epoch in range(3):
         #training mode
         policy_model.train()
 
