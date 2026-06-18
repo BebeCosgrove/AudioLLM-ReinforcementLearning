@@ -48,6 +48,15 @@ class AudioMDPOCollator:
 
             chosen_convs.append([
                 {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
+                        }
+                    ]
+                },
+                {
                     "role": "user",
                     "content": [
                         {
@@ -72,6 +81,15 @@ class AudioMDPOCollator:
             ])
 
             rejected_convs.append([
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
+                        }
+                    ]
+                },
                 {
                     "role": "user",
                     "content": [
@@ -98,6 +116,15 @@ class AudioMDPOCollator:
 
             perturbed_convs.append([
                 {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
+                        }
+                    ]
+                },
+                {
                     "role": "user",
                     "content": [
                         {
@@ -123,6 +150,15 @@ class AudioMDPOCollator:
 
             prompt_convs.append([
                 {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
+                        }
+                    ]
+                },
+                {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": ex["Q"]},
@@ -132,6 +168,16 @@ class AudioMDPOCollator:
             ])
 
             perturbed_prompt_convs.append([
+
+                {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
+                    }
+                ]
+            },
                 {
                     "role": "user",
                     "content": [
@@ -170,7 +216,7 @@ class AudioMDPOCollator:
                 }
             ])
 
-        #import pdb; pdb.set_trace()
+        
         chosen_inputs = self.processor.apply_chat_template(
         chosen_convs,
         tokenize=True,
@@ -207,7 +253,9 @@ class AudioMDPOCollator:
         return_dict=True,
         add_generation_prompt=True
     )
-    
+        import pdb; pdb.set_trace()
+
+        print(self.processor.tokenizer.decode(chosen_inputs['input_ids']))
 
         #gets the length of the prompt
         prompt_lengths = prompt_inputs["attention_mask"].sum(dim=1)
