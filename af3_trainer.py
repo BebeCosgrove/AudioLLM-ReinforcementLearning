@@ -253,9 +253,8 @@ class AudioMDPOCollator:
         return_dict=True,
         add_generation_prompt=True
     )
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
 
-        print(self.processor.tokenizer.decode(chosen_inputs['input_ids']))
 
         #gets the length of the prompt
         prompt_lengths = prompt_inputs["attention_mask"].sum(dim=1)
@@ -391,6 +390,15 @@ def evaluate(model, processor, dataset):
     
         conv = [
             {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
+                        }
+                    ]
+                },
+            {
                 "role": "user",
                 "content": [
                     {
@@ -477,7 +485,7 @@ def run():
     with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_train.json") as f:
         data = json.load(f)
 
-    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_val.json") as f:
+    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/original_datasets/ah_existence_val.json") as f:
         val_data = json.load(f)
 
 

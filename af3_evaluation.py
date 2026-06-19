@@ -22,6 +22,15 @@ def evaluate(model, processor, dataset):
     
         conv = [
             {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
+                        }
+                    ]
+                },
+            {
                 "role": "user",
                 "content": [
                     {
@@ -69,7 +78,7 @@ def evaluate(model, processor, dataset):
 def run_evaluation():
 
     #data
-    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_test.json") as f:
+    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/original_datasets/ah_existence_test.json") as f:
         data = json.load(f)
 
 

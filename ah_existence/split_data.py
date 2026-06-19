@@ -2,11 +2,11 @@ import json
 import random
 from collections import defaultdict
 
-INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/no_audio_ah_existence.json"
+INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/ah_existence.json"
 
-TRAIN_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_train.json"
-VAL_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_val.json"
-TEST_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_test.json"
+TRAIN_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/original_datasets/ah_existence_train.json"
+VAL_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/original_datasets/ah_existence_val.json"
+TEST_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/original_datasets/ah_existence_test.json"
 
 # Load dataset
 with open(INPUT_JSON) as f:
