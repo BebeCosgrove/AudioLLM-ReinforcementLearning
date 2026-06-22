@@ -320,7 +320,7 @@ def mdpo_loss(
     reference_chosen_logps: torch.FloatTensor,
     reference_rejected_logps: torch.FloatTensor, 
     reference_perturbed_chosen_logps: torch.FloatTensor,
-    beta = 0.1,
+    beta = 0.25,
     reference_free: bool = False):
 
     pi_logratios = policy_chosen_logps - policy_rejected_logps
