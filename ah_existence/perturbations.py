@@ -1198,10 +1198,10 @@ if __name__ == "__main__":
     print("after import")
 
 
-    INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/ah_existence.json"
-    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/no_audio_ah_existence.json"
+    INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/ah_order.json"
+    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/no_audio_ah_order.json"
 
-    OUTPUT_AUDIO_DIR = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_audio"
+    OUTPUT_AUDIO_DIR = "/data/not_backed_up/cosgrv/af3_project/ah_existence/_order_perturbed_audio"
     os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
 
     print("start")
@@ -1219,7 +1219,8 @@ if __name__ == "__main__":
 
     pert_fn = get_perturbation(pert_type, setting, sr=16000)
 
-    
+    success = 0
+    failed = 0
 
     for i, item in enumerate(data):
         if i % 100 == 0:
@@ -1230,8 +1231,12 @@ if __name__ == "__main__":
         try:
             audio, _ = librosa.load(audio_path, sr=16000)
         except Exception as e:
+            failed += 1
             print(f"Failed: {audio_path}")
+            print(e)
             continue
+
+        success += 1
 
         pert_audio = pert_fn(audio)
 
@@ -1261,10 +1266,23 @@ if __name__ == "__main__":
 
         new_data.append(new_item)
 
+    print(f"Success:", success)
+    print(f"Failed:", failed)
+    print(f"Total:", len(data))
+
+    print("About to save")
+    print("Output path:", OUTPUT_JSON)
+    print("Examples:", len(new_data))
+
     with open(OUTPUT_JSON, "w") as f:
         json.dump(new_data, f, indent=2)
 
     print(f"Saved {len(new_data)} examples")
+    print("OUTPUT_JSON =", OUTPUT_JSON)
+    print(f"Exists =", os.path.exists(OUTPUT_JSON))
+
+    if os.path.exists(OUTPUT_JSON):
+        print(f"Size =", os.path.getsize(OUTPUT_JSON))
 
     # # # --- CONFIG ---
     # # clotho_audio_dir = "datasets/clotho_aqa/audio_files"

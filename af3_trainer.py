@@ -320,7 +320,7 @@ def mdpo_loss(
     reference_chosen_logps: torch.FloatTensor,
     reference_rejected_logps: torch.FloatTensor, 
     reference_perturbed_chosen_logps: torch.FloatTensor,
-    beta = 0.25,
+    beta = 0.05,
     reference_free: bool = False):
 
     pi_logratios = policy_chosen_logps - policy_rejected_logps
@@ -344,7 +344,7 @@ def mdpo_loss(
     # mDPO 
     losses = -torch.nn.functional.logsigmoid(beta * logits) \
             -torch.nn.functional.logsigmoid(beta * audio_conditional_logits) \
-            -torch.nn.functional.logsigmoid(beta * anchor_logits)
+            # -torch.nn.functional.logsigmoid(beta * anchor_logits)
 
     chosen_rewards = (
         beta * (policy_chosen_logps - reference_chosen_logps).detach()
@@ -482,10 +482,10 @@ def run():
     policy_model = get_peft_model(policy_model, lora_config)
 
 
-    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/ah_existence_no_audio_train.json") as f:
+    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_split_data/no_audio_train_fold5.json") as f:
         data = json.load(f)
 
-    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/original_datasets/ah_existence_val.json") as f:
+    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_split_data/no_audio_val_fold5.json") as f:
         val_data = json.load(f)
 
 
@@ -509,7 +509,6 @@ def run():
     optimizer = torch.optim.AdamW(policy_model.parameters(), lr=5e-6)
 
     
-
     for epoch in range(3):
         #training mode
         policy_model.train()

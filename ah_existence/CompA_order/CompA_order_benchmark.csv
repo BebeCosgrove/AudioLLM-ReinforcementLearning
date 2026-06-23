@@ -1,0 +1,401 @@
+pair_caption,reversed_pair_caption,triplet_caption,pair_file,reversed_pair_file,triplet_file
+The growl of a tiger succeeded by human conversation.,Human conversation succeeded by the growl of a tiger.,The growl of a tiger amidst human conversation.,1.wav,1_rev.wav,1_trip.wav
+The clucking of chickens succeeded by the discourse of a man.,The discourse of a man followed by the clucking of chickens.,The clucking of chickens blending with the speech of a man.,2.wav,2_rev.wav,2_trip.wav
+A lion's roar concludes with people conversing,People conversing concludes with a lion's roar,People conversing alongside a roaring lion.,3.wav,3_rev.wav,3_trip.wav
+A growling and barking dog preluding human conversation.,Human conversation preceding the growling and barking of a dog.,Human conversation intermingled with a growling and barking dog.,4.wav,4_rev.wav,4_trip.wav
+A horse neighing preceding the chatter of people.,Chatter of people preceding the neighing of a horse.,-,5.wav,5_rev.wav,-
+A barking dog preceding a man's conversation.,A man's conversation preceding a barking dog.,A man conversing with a barking dog in the background.,6.wav,6_rev.wav,6_trip.wav
+A bleating goat succeeded by a communicating person.,A communicating person succeeded by a bleating goat.,A communicating person alongside a bleating goat.,7.wav,7_rev.wav,7_trip.wav
+A mooing cow followed by conversing people.,Conversing people followed by a mooing cow.,A mooing cow amidst conversing people.,8.wav,8_rev.wav,8_trip.wav
+"A horse neighing, succeeded by people conversing.","People conversing, succeeded by a horse neighing.",People conversing while a horse neighs in the background.,9.wav,9_rev.wav,9_trip.wav
+A barking dog followed by a man conversing,A conversing man followed by a barking dog,A conversing man whilst a dog barks.,10.wav,10_rev.wav,10_trip.wav
+A barking dog succeeded by a man talking.,A man talking succeeded by a barking dog.,A barking dog amidst a discussion by a man.,11.wav,11_rev.wav,11_trip.wav
+"A croaking frog, subsequently followed by a conversing man.","A conversing man, subsequently followed by a croaking frog.",-,12.wav,12_rev.wav,-
+A caterwauling cat preceding a person's speech.,A person's speech preceding a caterwauling cat.,A caterwauling cat amidst a man's speech.,13.wav,13_rev.wav,13_trip.wav
+"A howling dog, soon after joined by a speaking woman.","A speaking woman, soon after joined by a howling dog.",A howling dog intermixed with a speaking woman.,14.wav,14_rev.wav,14_trip.wav
+A horse neighing prior to a man's discourse.,A man's discourse prior to a horse neighing.,A horse neighing amidst a man's discourse.,15.wav,15_rev.wav,15_trip.wav
+An animal's howl concludes with human chatter.,Human chatter concludes with an animal's howl.,An animal's howl amidst a man's speech.,16.wav,16_rev.wav,16_trip.wav
+Roaring of an animal concluded by melodious singing of people.,Melodious singing of people concluded by the roaring of an animal.,-,17.wav,17_rev.wav,-
+A man's speech following the clucking of a chicken.,The clucking of a chicken following a man's speech.,The clucking of a chicken intermixed with a man's speech.,18.wav,18_rev.wav,18_trip.wav
+A panting dog followed by a conversing female.,A conversing female followed by a panting dog.,A panting dog alongside a conversing female.,19.wav,19_rev.wav,19_trip.wav
+A mooing cow followed by a conversing man.,A conversing man followed by a mooing cow.,A conversing man amidst the sound of a mooing cow.,20.wav,20_rev.wav,20_trip.wav
+A bleating goat followed by people speaking.,People speaking. followed by a bleating goat.,People speaking intermingled with a bleating goat.,21.wav,21_rev.wav,21_trip.wav
+A growling dog capped off by a man conversing.,A man conversing capped off by a growling dog.,A growling dog intertwining with a man conversing.,22.wav,22_rev.wav,22_trip.wav
+A purring cat followed by a conversing man.,A conversing man followed by a purring cat.,A purring cat alongside a conversing man.,23.wav,23_rev.wav,23_trip.wav
+Background noise preceding a ringing telephone,A ringing telephone preceding background noise,-,24.wav,24_rev.wav,-
+A chiming doorbell followed by melodious music.,Melodious music followed by a chiming doorbell.,-,25.wav,25_rev.wav,-
+"A doorbell chiming, then music resonating","Music resonating, then a doorbell chiming",-,25.wav,26_rev.wav,-
+"A chiming doorbell followed by melodious music","Melodious music followed by a chiming doorbell.",-,25.wav,27_rev.wav,-
+"A doorbell chime followed by melodious tunes.","Melodious tunes followed by a doorbell chime.",-,28.wav,25_rev.wav,-
+A chiming doorbell followed by melodious music,Melodious music followed by a chiming doorbell,-,28.wav,26_rev.wav,-
+A doorbell ringing is followed by melodious music,Melodious music is followed a doorbell ringing.,-,28.wav,27_rev.wav,-
+A doorbell chiming before a symphony of music.,A symphony of music then a doorbell chimes.,-,31.wav,25_rev.wav,-
+A ringing doorbell succeeded by melodic tunes,Melodic tunes succeeded by a ringing doorbell,-,31.wav,26_rev.wav,-
+A doorbell echoing followed by rhythmic music.,Rhythmic music playing followed by the echo of a doorbell.,-,31.wav,27_rev.wav,-
+A doorbell chiming succeeded by melodic tunes.,Melodic tunes succeeded by a chiming doorbell.,-,34.wav,25_rev.wav,-
+A chiming doorbell followed by harmonious music.,Harmonious music followed by a chiming doorbell.,-,34.wav,26_rev.wav,-
+The chiming of a doorbell followed by a melody playing,"A melody playing, then interrupted by a chiming doorbell.",-,34.wav,27_rev.wav,-
+A ringing doorbell succeeded by melodious music.,Melodious music succeeded by a ringing doorbell.,-,37.wav,25_rev.wav,-
+A chiming doorbell succeeded by melodic music.,"Melodic music setting in, followed by a chiming doorbell.",-,37.wav,26_rev.wav,-
+A doorbell chimes and is followed by harmonious music,"Harmonious music plays, to be followed by a chiming doorbell.",-,37.wav,27_rev.wav,-
+"A growling tiger, succeeded by a distinct pop.","A distinct pop, succeeded by a growling tiger.",-,40.wav,40_rev.wav,-
+An animal's groan followed by a distinct gunshot.,A distinct gunshot followed by an animal's groan.,-,41.wav,41_rev.wav,-
+A neighing horse followed by a loud gunshot.,A loud gunshot followed by a neighing horse.,-,42.wav,42_rev.wav,-
+Chirping birds followed by echoing gunfire.,Echoing gunfire followed by chirping birds.,-,43.wav,43_rev.wav,-
+"Water flowing from a tap, followed by an individual conversing.","An individual convering, followed by water flowing from a tap.",-,44.wav,44_rev.wav,-
+Rainfall succeeded by an individual talking.,An individual talking succeeded by rainfall.,-,45.wav,45_rev.wav,-
+Water splashing followed by a person talking.,A person talking followed by the sound of water splashing.,-,46.wav,46_rev.wav,-
+A downpour succeeded by a person's speech.,A person's speech succeeded by a downpour.,-,47.wav,47_rev.wav,-
+Water cascading preceded by a person talking.,A person talking succeeded by cascading water.,-,48.wav,48_rev.wav,-
+Droplets of water hitting a bucket followed by a person conversing.,A person conversing followed by droplets of water hitting a bucket.,-,49.wav,49_rev.wav,-
+A downpour followed by an individual's melody.,An individual's melody followed by a downpour.,-,50.wav,50_rev.wav,-
+Water surface footsteps followed by human conversation.,Human conversation followed by water surface footsteps.,-,51.wav,51_rev.wav,-
+The gust of wind superseded by the clatter of equipment,The clatter of equipment superseded by the gust of wind,-,52.wav,52_rev.wav,-
+Background noise followed by a man's dialogue,A man's dialogue followed by background noise,-,53.wav,53_rev.wav,-
+A revving engine succeeded by a person talking,A person talking succeeded by a revving engine,-,54.wav,54_rev.wav,-
+A revving engine followed by a man's dialogue.,A man's dialogue followed by a revving engine.,-,55.wav,55_rev.wav,-
+"An engine revving up, culminating in a human voice.",Human speech preceded by the revving up of an engine.,-,56.wav,56_rev.wav,-
+A thunderous boom followed by a woman's voice,A woman's voice followed by a thunderous boom,-,57.wav,57_rev.wav,-
+A resonating boom preceding a person's melody.,A person's melody followed by a resonating boom.,-,58.wav,58_rev.wav,-
+The roar of a revving engine followed by a man's dialogue,A man's dialogue followed by the roar of a revving engine,-,59.wav,59_rev.wav,-
+"An engine revving and accelerating, succeeded by people conversing","People conversing, succeeded by an engine revving and accelerating",-,60.wav,60_rev.wav,-
+A vehicle revving up followed by a man's monologue.,A man's monologue followed by a vehicle revving up.,-,61.wav,61_rev.wav,-
+A revving engine followed by a talking man.,A talking man followed by a revving engine.,-,62.wav,62_rev.wav,-
+A vehicle revving up followed by people chattering,People chattering followed by a revving vehicle.,-,63.wav,63_rev.wav,-
+The revving of an engine followed by a person's speech.,A person's speech followed by the revving of an engine.,-,64.wav,59_rev.wav,-
+Background noise followed by a man's dialogue,A man's dialogue interrupted by subsequent background noise,-,65.wav,12_rev.wav,-
+An accelerating engine followed by a speaking male.,A speaking male followed by an accelerating engine.,-,66.wav,66_rev.wav,-
+A thunderous boom succeeded by a person conversing,A person conversing succeeded by a thunderous boom,-,67.wav,67_rev.wav,-
+A revving engine accelerating followed by a man's dialogue.,"A man's dialogue followed by an accelerating, revving engine.",-,68.wav,68_rev.wav,-
+An engine roaring and accelerating soon followed by hearty laughter,Hearty laughter followed by an engine roaring and accelerating.,-,69.wav,69_rev.wav,-
+"An engine revving and accelerating, followed by a man speaking.","A man speaking, followed by an engine revving and accelerating.",-,70.wav,70_rev.wav,-
+The revving of an engine followed by a man speaking.,"A man speaking, followed by the revving of an engine.",-,71.wav,71_rev.wav,-
+Background noise giving way to a person's song,A person's song giving way to background noise,-,72.wav,72_rev.wav,-
+An engine revving succeeded by a man conversing,A man conversing succeeded by an engine revving,-,73.wav,73_rev.wav,-
+An engine revving succeeded by an individual speaking.,An individual speaking succeeded by an engine revving.,-,74.wav,74_rev.wav,-
+A revving engine followed by a talking man.,A talking man followed by a revving engine.,-,75.wav,75_rev.wav,-
+A roaring engine followed by a person's laughter.,A person's laughter followed by a roaring engine.,-,76.wav,76_rev.wav,-
+A gust of wind over the microphone followed by a man's speech,A man's speech followed by a gust of wind over the microphone,-,77.wav,77_rev.wav,-
+Tinkling of a wind chime followed by a person's dialogue,A person's dialogue followed by the tinkling of a wind chime,-,78.wav,78_rev.wav,-
+"The sound of wind and rain ceasing, followed by a man's speech","A man's speech, followed by the ceasing sound of wind and rain.",-,79.wav,79_rev.wav,-
+"Gusty winds hitting a microphone, later accompanied by a man's dialogue.","A man's dialogue, later accompanied by gusty winds hitting a microphone.",-,80.wav,80_rev.wav,-
+Background disturbance concluded by a barking dog.,A barking dog followed by background disturbance.,-,81.wav,81_rev.wav,-
+"A loud boom succeeded by an animal's sneeze","An animal's sneeze succeeded by a loud boom.",-,82.wav,82_rev.wav,-
+A distant boom followed by the bleating of a goat.,The bleating of a goat followed by a distant boom.,-,83.wav,83_rev.wav,-
+Background noise followed by a bleating goat,A bleating goat followed by background noise,-,84.wav,84_rev.wav,-
+An explosion followed by the chirping of birds.,The chirping of birds followed by an explosion.,-,85.wav,85_rev.wav,-
+The roar of an engine followed by the melody of chirping birds.,The melody of chirping birds followed by the roar of an engine.,-,86.wav,86_rev.wav,-
+Background noise preceded by chirping.,Chirping preceded by background noise.,-,87.wav,87_rev.wav,-
+An animal's screech followed by the sound of a doorbell ringing,The sound of a doorbell ringing followed by an animal's screech,-,88.wav,88_rev.wav,-
+Animal noises followed by the clinking of bells.,The clinking of bells followed by animal noises.,-,89.wav,89_rev.wav,-
+A grunting pig prior to a ringing bell,A ringing bell prior to a grunting pig,-,90.wav,90_rev.wav,-
+A bleating goat followed by the sound of scraping.,The sound of scraping followed by a bleating goat.,-,91.wav,91_rev.wav,-
+A barking dog followed by footsteps of a walking person.,Footsteps of a walking person followed by a barking dog.,-,92.wav,92_rev.wav,-
+Birdsong followed by the sound of a tap filling with water.,"The sound of a tap filling with water, followed by birdsong.",-,93.wav,93_rev.wav,-
+A man conversing followed by resonating impact sounds.,Resonating impact sounds followed by a man conversing.,-,94.wav,94_rev.wav,-
+A man chattering followed by a resonating thud.,A resonating thud followed by a man chattering.,-,95.wav,95_rev.wav,-
+A man talking followed by a resonating thud.,A resonating thud followed by a man talking.,-,96.wav,96_rev.wav,-
+A woman's dialogue followed by a scratching sound,A scratching sound followed by a woman's dialogue,-,97.wav,97_rev.wav,-
+A chatting man followed by a resounding thud.,A resounding thud followed by a chatting man.,-,98.wav,98_rev.wav,-
+A man's speech followed by a harmonious melody,"A harmonious melody playing, succeeded by a man's speech",-,99.wav,99_rev.wav,-
+"A man orating, followed by a resonating clunk","A resonating clunk echoed, followed by a man orating",-,100.wav,100_rev.wav,-
+A person conversing followed by audible rustling.,Audible rustling followed by a person conversing.,-,101.wav,101_rev.wav,-
+"A man conversing, followed by a click.","A click, followed by a man conversing.",-,102.wav,102_rev.wav,-
+Human chatter followed by static white noise.,Static white noise followed by human chatter.,-,103.wav,103_rev.wav,-
+"A man conversing, then a click","A click, then a man conversing",-,104.wav,104_rev.wav,-
+A murmuring voice followed by distinct scratching.,Distinct scratching followed by a murmuring voice.,-,105.wav,105_rev.wav,-
+A man's speech followed by background rustling.,Background rustling followed by a man's speech.,-,106.wav,106_rev.wav,-
+Human chatter trailed by bustling traffic,Bustling traffic trailed by human chatter,-,107.wav,107_rev.wav,-
+"A man conversing, followed by a resounding thud.","A resounding thud, followed by a man conversing.",-,108.wav,108_rev.wav,-
+A man conversing followed by ticking sound.,A ticking sound followed by human conversation.,-,109.wav,109_rev.wav,-
+"A woman's voice, followed by the sound of writing","The sound of writing, succeeded by a woman speaking.",-,110.wav,110_rev.wav,-
+"A man speaking, followed by a basketball bouncing",A bouncing basketball followed by a speaking man.,-,111.wav,111_rev.wav,-
+A man's speech followed by the rhythmic clicking,The rhythmic clicking followed by a man's speech,-,112.wav,112_rev.wav,-
+A human voice transitioning into music.,Music transitioning into a human voice.,-,113.wav,113_rev.wav,-
+A woman's voice followed by persistent ticking,Persistent ticking followed by a woman's voice,-,114.wav,114_rev.wav,-
+A person conversing then followed by a resonating thud,A resonating thud followed promptly by a person conversing,-,115.wav,115_rev.wav,-
+"A man conversing, followed by the sound of a gunshot.",The sound of a gunshot followed by a man conversing.,-,116.wav,116_rev.wav,-
+A human converses followed by melodious music,Melodious music plays followed by a human conversing,-,117.wav,117_rev.wav,-
+A person conversing followed by consecutive thuds.,Consecutive thuds followed by a person conversing.,-,118.wav,118_rev.wav,-
+A man articulating words followed by the shattering of glass.,The shattering of glass followed by a man articulating words.,-,119.wav,119_rev.wav,-
+A woman's voice followed by a snapping sound,A snapping sound followed by a woman's voice.,-,120.wav,120_rev.wav,-
+Birdsong concluding with serene whistling.,Serene whistling concluding with birdsong.,-,121.wav,121_rev.wav,-
+A bird's call followed by joyful laughter.,Joyful laughter followed by a bird's call.,-,122.wav,122_rev.wav,-
+Birdsong followed by applause,Applause followed by birdsong.,-,123.wav,123_rev.wav,-
+A crow's call followed by quiet respiration.,Quiet respiration followed by a crow's call.,-,124.wav,124_rev.wav,-
+Birdsong precedes human footsteps.,Human footsteps precede birdsong.,-,125.wav,125_rev.wav,-
+A subtle human whisper following a bird's call.,A bird's call echoed before a subtle human whisper.,-,126.wav,126_rev.wav,-
+A bird's call preceding human laughter and giggles.,Human laughter and giggles preceding a bird's call.,-,127.wav,127_rev.wav,-
+A bird tweeting followed by a human coughing and sneezing.,A human coughing and sneezing followed by a bird tweeting.,-,128.wav,128_rev.wav,-
+Chirping bird culminating in a whistle.,A whistle culminating in a chirping bird.,-,129.wav,129_rev.wav,-
+Background disturbance preceding a playing song,A playing song succeeding a background disturbance.,-,130.wav,72_rev.wav,-
+Background noise followed by melodious tunes.,Melodious tunes followed by background noise.,-,131.wav,131_rev.wav,-
+A resounding boom echoed before the melody of music.,The melody of music ended with a resounding boom.,-,85.wav,132_rev.wav,-
+Background disturbance succeeded by melodious music.,Melodious music succeeded by a background disturbance.,-,133.wav,133_rev.wav,-
+Explosion of a bomb followed by the melody of music,Melody of music followed by the explosion of a bomb,-,134.wav,134_rev.wav,-
+An engine revving succeeded by melodious music.,Melodious music succeeded by an engine revving.,-,61.wav,135_rev.wav,-
+An engine revving succeeded by melodious music.,Melodious music succeeded by an engine revving.,-,136.wav,136_rev.wav,-
+Background disturbance culminating in melodious music,Melodious music culminating in background disturbance.,-,137.wav,137_rev.wav,-
+A resonating explosion followed by melodious tunes.,Melodious tunes followed by a resonating explosion.,-,138.wav,138_rev.wav,-
+Background noise followed by melodious tunes,Melodious tunes followed by background noise,-,139.wav,139_rev.wav,-
+A resonating boom followed by melodious tunes.,Melodious tunes followed by a resonating boom.,-,140.wav,140_rev.wav,-
+A woman's speech followed by the ringing of a bell.,The ringing of a bell followed by a woman's speech.,A woman's speech mingled with the ringing of a bell.,141.wav,141_rev.wav,141_trip.wav
+A conversing woman followed by a ringing bell.,A ringing bell followed by a conversing woman.,A conversing woman amidst a ringing bell.,142.wav,142_rev.wav,142_trip.wav
+"A man conversing, followed by the ringing of a bell.","The ringing of a bell, followed by a man conversing.",The simultaneous sounds of a man conversing and a bell ringing.,143.wav,143_rev.wav,143_trip.wav
+A human conversing then a bell tolling.,A bell tolling then a human conversing.,A human conversing with a bell tolling.,144.wav,144_rev.wav,144_trip.wav
+A man speaks prior to a bell's ring.,A bell's ring prior to a man speaking.,A man speaking concurrent with a bell ringing.,145.wav,145_rev.wav,25.wav
+A choir singing followed by a sounding bell.,A sounding bell followed by a choir singing.,A choir singing with a bell ringing in the background.,146.wav,146_rev.wav,146_trip.wav
+A woman chattering before a bell resonates,A bell resonates before a woman starts chattering,A woman chattering while a bell resonates,147.wav,147_rev.wav,147_trip.wav
+A man vocalizing prior to a bell's resonant ringing.,A bell's resonant ringing prior to a man vocalizing.,A vocalizing man amidst the sound of a resonating bell.,148.wav,148_rev.wav,148_trip.wav
+A man's discourse followed by a tolling bell.,A tolling bell followed by a man's discourse.,A man's discourse together with a tolling bell.,149.wav,149_rev.wav,149_trip.wav
+A man's speech concludes with the ring of a bell.,The ring of a bell concludes with a man's speech.,A man's speech intermixed with the ringing of a bell.,150.wav,150_rev.wav,150_trip.wav
+Bell chimes echoing after person's speech.,A person's speech echoing after the chimes of a bell.,Bell chimes conversing with a person's speech.,151.wav,151_rev.wav,151_trip.wav
+A revving engine succeeded by a beeping vehicle.,A beeping vehicle succeeded by a revving engine.,-,152.wav,152_rev.wav,-
+An engine revving followed by the skid of tires.,The skid of tires followed by an engine revving.,-,153.wav,153_rev.wav,-
+An engine revving succeeded by the sound of tires skidding on the road.,The sound of tires skidding on the road succeeded by an engine revving.,-,154.wav,154_rev.wav,-
+An engine revving succeeded by a tire skidding.,A tire skidding succeeded by an engine revving.,-,155.wav,155_rev.wav,-
+A revving engine followed by tires skidding on the road.,Tires skidding on the road followed by a revving engine.,-,156.wav,156_rev.wav,-
+A revving engine leading into a tire squeak.,A squeaking tire succeeded by a revving engine.,-,157.wav,153_rev.wav,-
+Background noise followed by a faint electric hum.,A faint electric hum followed by background noise.,-,158.wav,158_rev.wav,-
+Background noise followed by buzzing electrical equipment.,Buzzing electrical equipment followed by background noise.,-,159.wav,159_rev.wav,-
+An accelerating engine succeeded by tires skidding,Tires skidding succeeded by an accelerating engine,-,160.wav,160_rev.wav,-
+A revving engine followed by a squeaking tire,A squeaking tire followed by a revving engine,-,161.wav,161_rev.wav,-
+A thunderous explosion followed by a ticking device.,A ticking device followed by a thunderous explosion.,-,162.wav,162_rev.wav,-
+An background disturbance followed by a beeping device.,A beeping device followed by background disturbance.,-,163.wav,163_rev.wav,-
+An accelerating engine followed by dragging tires.,Dragging tires followed by an accelerating engine.,-,164.wav,156_rev.wav,-
+An accelerating engine succeeded by tires skidding on the road,Tires skidding on the road succeeded by an accelerating engine,-,165.wav,156_rev.wav,-
+An engine revving succeeded by squeaking tires.,Squeaking tires succeeded by a revving engine.,-,166.wav,156_rev.wav,-
+An engine revving culminating with tires screeching on the road.,Tires screeching on road preceding a revving engine.,-,167.wav,155_rev.wav,-
+"An engine revving and accelerating, then followed by the tires squealing",The squeal of tires followed by the rev and acceleration of an engine,-,168.wav,155_rev.wav,-
+Chirping concludes with a bark.,A bark concludes with chirping.,-,169.wav,169_rev.wav,-
+Clucking chickens concluded by a mooing cow.,Mooing cow concluded by clucking chickens.,-,170.wav,170_rev.wav,-
+Chirping and tweeting before a dominating roar.,A dominating roar before the charming chirps and tweets.,-,171.wav,171_rev.wav,-
+A chirping bird preceding a mooing cow.,A mooing cow preceding a chirping bird.,-,172.wav,172_rev.wav,-
+A bird's call followed by a horse's neigh.,A horse's neigh followed by a bird's call.,-,173.wav,173_rev.wav,-
+Birdsong concludes with a mighty roar.,A mighty roar concludes with birdsong.,-,174.wav,174_rev.wav,-
+A bird's call followed by a pig's oink.,A pig's oink followed by a bird's call.,-,175.wav,175_rev.wav,-
+A bird's song before a dog's bark.,A dog's bark before a bird's song.,-,176.wav,169_rev.wav,-
+A sheep's bleat followed by a bird's chirp.,A bird chirping after the bleat of a sheep.,-,177.wav,177_rev.wav,-
+A bird's call followed by a neighing horse.,A neighing horse followed by a bird's call.,-,178.wav,178_rev.wav,-
+The chirping concludes with a caw.,A caw concludes the chirping.,-,179.wav,179_rev.wav,-
+Birdsong concludes with a bark.,A bark concludes with birdsong.,-,180.wav,180_rev.wav,-
+Crowing rooster followed by a bleating creature.,A bleating creature followed by a crowing rooster.,-,181.wav,181_rev.wav,-
+A man speaking succeeded by the sound of a door opening or closing.,The sound of a door opening or closing succeeded by a man speaking.,A man speaking amid the sound of a door opening or closing.,182.wav,182_rev.wav,182_trip.wav
+A woman's dialogue before the door moves.,The door moves before the woman's dialogue.,The woman's dialogue as the door moves.,183.wav,183_rev.wav,183_trip.wav
+A human speaking prior to the door's opening or closing.,The door's opening or closing prior to a human speaking,-,184.wav,184_rev.wav,-
+A man speaking trailed by the sound of sniffing.,The sound of sniffing trailed by a man speaking.,A man speaking intertwined with the sound of sniffing.,185.wav,185_rev.wav,185_trip.wav
+A person speaking prior to the snipping of scissors.,The snipping of scissors prior to a person speaking.,A person speaking amidst the snipping of scissors.,186.wav,186_rev.wav,186_trip.wav
+A man conversing followed by a series of knocks.,A series of knocks followed by a conversing man.,-,187.wav,187_rev.wav,-
+A dialogue unfolding prior to a paper crumpling.,A paper crumpling followed by a dialogue unfolding.,A dialogue unfolding amidst the sound of crumpling paper.,188.wav,188_rev.wav,188_trip.wav
+An individual speaking prior to the sound of chopping.,The sound of chopping prior to an individual speaking.,An individual speaking amidst the sound of chopping.,189.wav,189_rev.wav,189_trip.wav
+A woman's chatter followed by the pouring of a liquid.,The pouring of a liquid followed by a woman's chatter.,A woman's chatter mingling with the sound of liquid being poured.,190.wav,190_rev.wav,190_trip.wav
+A person speaking followed by the sound of liquid pouring.,The sound of liquid pouring precedes a person speaking.,The sound of a person speaking intertwined with the sound of liquid pouring.,191.wav,185_rev.wav,191_trip.wav
+Human chatter prior to the clinking of glass.,The clinking of glass prior to human chit-chat.,Human chatter amidst the clinking of glass.,192.wav,192_rev.wav,192_trip.wav
+A man conversing prior to the sound of footsteps.,The sound of footsteps prior to a man conversing.,A man conversing as footsteps echo.,193.wav,193_rev.wav,193_trip.wav
+A man speaking prior to the sound of footsteps.,The sound of footsteps preceding a man speaking.,A man speaking intertwined with the sound of footsteps.,194.wav,194_rev.wav,194_trip.wav
+A man speaking prior to the sounds of footsteps.,The sounds of footsteps preceding a man speaking.,A man speaking as footsteps are heard.,195.wav,195_rev.wav,195_trip.wav
+A person speaking prior to the rhythmic beat of footsteps.,The rhythmic beat of footsteps preceding a person speaking.,A person speaking intertwined with the rhythmic beat of footsteps.,196.wav,196_rev.wav,196_trip.wav
+A woman's conversation succeeded by the whirring of a blender.,The whirring of a blender succeeded by a woman's conversation.,A woman's conversation coupled with the whirring of a blender.,197.wav,197_rev.wav,197_trip.wav
+A woman's conversation preceding the blender's buzzing.,The blender's buzzing preceding a woman's conversation.,Between a woman's conversation and the buzzing of a blender.,198.wav,198_rev.wav,198_trip.wav
+A blender whirring post conversation.,Conversation followed by a blender whirring.,A blender whirring amidst a conversation.,199.wav,199_rev.wav,199_trip.wav
+A man's speech followed by the hum of a blender.,The hum of a blender followed by a man's speech.,A man's speech intertwined with the hum of a blender.,200.wav,200_rev.wav,200_trip.wav
+The sound of a person speaking followed by a blender humming.,A blender humming just before someone speaks.,-,201.wav,201_rev.wav,-
+A woman's voice followed by the humming of a blender.,The humming of a blender followed by a woman's voice.,-,202.wav,202_rev.wav,-
+An individual speaking prior to the hum of a blender motor.,The hum of a blender motor prior to an individual speaking.,-,203.wav,203_rev.wav,-
+A person speaking prior to the whirring of a blender.,The whirring of a blender prior to someone speaking.,-,204.wav,204_rev.wav,-
+A discourse by a man followed by the sound of an object being rubbed.,The sound of an object being rubbed followed by a man's discourse.,-,205.wav,205_rev.wav,-
+A lady engaging in conversation followed by cutlery clinking.,Clinking cutlery followed by a lady engaging in conversation.,-,206.wav,206_rev.wav,-
+A man conversing followed by the mechanical sound of a drawer opening and closing.,The mechanical sound of a drawer opening and closing followed by a man conversing.,-,207.wav,207_rev.wav,-
+"A man speaking, then the whooshing of a hair dryer ensues.","The whooshing of a hair dryer, then a man commences speaking.",-,208.wav,208_rev.wav,-
+Voices speaking trailed by cards shuffling.,Cards shuffling trailed by voices speaking.,-,209.wav,209_rev.wav,-
+A speaking man followed by the rustling of cards.,The rustling of cards followed by a speaking man.,-,210.wav,210_rev.wav,-
+A voice speaking followed by the scrubbing of a toothbrush.,The scrubbing of a toothbrush followed by a voice speaking.,-,211.wav,211_rev.wav,-
+A man speaking followed by the hum of an electric toothbrush.,The hum of an electric toothbrush followed by a man speaking.,-,212.wav,212_rev.wav,-
+A person speaking prior to the audible busy signal.,The audible busy signal precedes a person speaking.,-,213.wav,213_rev.wav,-
+"Chirping concludes, giving way to music","Music concludes, giving way to chirping",-,214.wav,214_rev.wav,-
+A buzzing housefly followed by the melodies of an instrument.,The melodies of an instrument followed by a buzzing housefly.,-,215.wav,215_rev.wav,-
+'A cricket's chirp concluding with musical instrumentation.','Musical instrumentation concluding with a cricket's chirp.',-,216.wav,216_rev.wav,-
+A buzzing mosquito before the melody of music begins.,Melody of music begins before a buzzing mosquito.,-,217.wav,217_rev.wav,-
+A chirp concluding with a blaring siren,A blaring siren concluding with a chirp,-,218.wav,218_rev.wav,-
+An owl hooting succeeded by harmonious music.,Harmonious music succeeded by an owl hooting.,-,219.wav,219_rev.wav,-
+"Music fading out, replaced by cricket chirping.","Cricket chirping, fading into a musical ending.",-,220.wav,220_rev.wav,-
+Thunder cracking followed by a furious beast growling.,A furious beast growling followed by thunder cracking.,-,221.wav,221_rev.wav,-
+An alert signal preceding melodic tunes.,Melodic tunes followed by an alert signal.,-,222.wav,222_rev.wav,-
+An alert sound preceding a musical tune.,A musical tune preceded by an alert sound.,-,223.wav,223_rev.wav,-
+The sound of a ringing telephone followed by melodious music,Melodious music followed by the sound of a ringing telephone.,-,224.wav,224_rev.wav,-
+Tap water flowing followed by the clinking of cutlery being placed on racks.,The clinking of cutlery being placed on racks followed by the flow of tap water.,-,225.wav,225_rev.wav,-
+The sound of water flowing from a tap followed by mechanistic operations.,Mechanistic operations preceded by the sound of water flowing from a tap.,-,226.wav,226_rev.wav,-
+"Water flowing from a tap, succeeded by the clinking of cooking utensils.","The clinking of cooking utensils, succeeded by water flowing from a tap.",-,227.wav,227_rev.wav,-
+The serene flow of water followed by thunderous footsteps.,Thunderous footsteps followed by the serene flow of water.,-,228.wav,228_rev.wav,-
+The sound of water splashing followed by the collision of two objects.,The collision of two objects followed by the sound of water splashing.,-,229.wav,229_rev.wav,-
+A chirping bird followed by a conversing man,A conversing man followed by a chirping bird.,-,230.wav,230_rev.wav,-
+Birds chirping and tweeting followed by a man conversing.,A man conversing followed by birds chirping and tweeting.,-,231.wav,9_rev.wav,-
+The chirping of crickets concluding with a man's discourse.,A man's discourse concluding with the chirping of crickets.,-,232.wav,232_rev.wav,-
+Birdsong followed by a man's discourse,A man's discourse followed by birdsong,-,233.wav,233_rev.wav,-
+"A quack resonating, followed by a male voice","A male voice, followed by a resonating quack.",-,234.wav,234_rev.wav,-
+A rooster crowing prior to a man speaking.,A man speaking prior to a rooster crowing.,-,235.wav,235_rev.wav,-
+A chirping bird preceding a human's speech.,A human's speech preceding a chirping bird.,-,236.wav,236_rev.wav,-
+A bird call concluding with a man conversing.,A man conversing concluding with a bird call.,-,237.wav,237_rev.wav,-
+"A rooster's crowing, followed by a man conversing","A man conversing, followed by a rooster's crowing",-,238.wav,238_rev.wav,-
+"A bird call concludes, giving way to a woman's dialogue.","A woman's dialogue culminates, making way for a bird call.",-,239.wav,239_rev.wav,-
+A chirp concludes with a man's shout,A man's shout concludes with a chirp,-,240.wav,240_rev.wav,-
+A chirping bird followed by a woman's conversation.,A woman's conversation followed by a chirping bird.,-,241.wav,241_rev.wav,-
+A chirping bird prior to a male's voice.,A male's voice prior to a chirping bird.,-,242.wav,242_rev.wav,-
+A bird flapping its wings and chirping followed by a man's voice.,A man's voice followed by a bird flapping its wings and chirping.,-,243.wav,243_rev.wav,-
+"A bird's tweet ceases, giving way to a man's speech.","A man's speech ceases, giving way to a bird's tweet.",-,244.wav,244_rev.wav,-
+A chirping bird terminated by a speaking male.,A speaking male terminated by a chirping bird.,-,245.wav,245_rev.wav,-
+A chirp echoed by successive clicking.,Successive clicking echoed by a chirp.,-,246.wav,246_rev.wav,-
+Chirping and tweeting conclude with beeping and bleeping.,Beeping and bleeping conclude with chirping and tweeting.,-,247.wav,247_rev.wav,-
+A warbling bird call succeeded by a camera's click.,A camera's click succeeded by a warbling bird call.,-,248.wav,248_rev.wav,-
+A chirp echoed before the sound of telephone dialing.,The sound of telephone dialing preceded by a chirp.,-,249.wav,249_rev.wav,-
+Gusts of wind followed by a female's whisper,A female whispering followed by gusts of wind,-,250.wav,250_rev.wav,-
+A woman's conversation followed by a wailing siren.,A wailing siren succeeded by a woman's conversation.,A woman's conversation intermingled with a wailing siren.,251.wav,251_rev.wav,251_trip.wav
+A man communicating followed by an alarm sounding,"An alarm sounding, followed by a man communicating",A man communicating amid the sound of an alarm,252.wav,252_rev.wav,252_trip.wav
+A child speaking followed by melodic tunes.,Melodic tunes followed by a child speaking.,A child speaking with music playing in the background.,253.wav,253_rev.wav,253_trip.wav
+A man speaking followed by a steam whistle.,A steam whistle followed by a man speaking.,A man speaking amidst the sound of a steam whistle.,254.wav,254_rev.wav,254_trip.wav
+A man speaking before the wailing of an ambulance siren.,The wailing of an ambulance siren before a man speaking,A man speaking amidst the wailing of an ambulance siren.,255.wav,255_rev.wav,255_trip.wav
+Chatter of people followed by a steam whistle's blow,A blow of a steam whistle followed by people's chatter,-,256.wav,256_rev.wav,-
+A man's speech culminating in a fire alarm.,A fire alarm concluding a man's speech.,A man speaking with a fire alarm ringing in the background.,257.wav,257_rev.wav,257_trip.wav
+A man's speech followed by a smoke alarm's siren.,An alarming siren of smoke detector followed by a man's dialogue.,A man's dialogue intertwined with the ringing of a smoke alarm.,258.wav,258_rev.wav,258_trip.wav
+A man's speech concluding with the ringing of an alarm clock.,The ringing of an alarm clock concluding with a man's speech.,A man speaking intertwined with the ringing of an alarm clock.,259.wav,259_rev.wav,259_trip.wav
+A conversation by a man concluding with the hum of a tuning fork,The hum of a tuning fork concluding with a conversation by a man,-,260.wav,260_rev.wav,-
+A man conversing followed by the chirp of an alarm.,The chirp of an alarm followed by a man conversing.,A man conversing amid the chirp of an alarm.,261.wav,261_rev.wav,261_trip.wav
+A man conversing before a siren ringing.,A siren ringing before a man conversing.,A man conversing alongside a siren ringing.,262.wav,262_rev.wav,262_trip.wav
+A conversation from a man concluding with a beeping alarm.,A beeping alarm concluding with a man's conversation.,A man conversing amidst a beeping alarm.,263.wav,263_rev.wav,263_trip.wav
+A chatting woman followed by a shrieking vehicle siren.,A shrieking vehicle siren followed by a chatting woman.,A chatting woman interrupted by a wailing vehicle siren.,264.wav,264_rev.wav,264_trip.wav
+A man conversing followed by a buzzing car siren.,A buzzing car siren followed by a man conversing.,A man conversing with a buzzing car siren in the background.,265.wav,265_rev.wav,265_trip.wav
+"A woman speaking, followed by an alarm sounding off","An alarm sounding off, followed by a woman speaking",The sound of a woman speaking amidst a ringing alarm,266.wav,266_rev.wav,266_trip.wav
+A man's speech culminating in a ringing alarm.,A ringing alarm concluding a man's speech.,An alarm ringing amidst a man's speech.,267.wav,267_rev.wav,267_trip.wav
+Melodies playing followed by a river's gentle flow.,A river's gentle flow followed by melodies playing.,-,268.wav,268_rev.wav,-
+A caterwaul echoed followed by a beeping device.,A beeping device echoed followed by a caterwaul.,-,269.wav,269_rev.wav,-
+A neighing horse followed by a clicking switch.,A clicking switch followed by a neighing horse.,-,270.wav,270_rev.wav,-
+A bird's tweet concluding with the sound of a chainsaw.,The sound of a chainsaw concluding with a bird's tweet.,-,271.wav,271_rev.wav,-
+A bird's chirp preceding the noise of a chainsaw.,The noise of a chainsaw preceding a bird's chirp.,-,272.wav,272_rev.wav,-
+Birdsong followed by the sound of a doorbell.,The sound of a doorbell followed by birdsong.,-,273.wav,273_rev.wav,-
+A chirping bird ends with a pleasant chime.,A pleasant chime ends with a chirping bird.,-,274.wav,274_rev.wav,-
+A blaring truck horn followed by a man's dialogue.,A man's dialogue followed by a blaring truck horn.,-,275.wav,275_rev.wav,-
+A beeping car alarm concluding with a person talking.,A person talking concluding with a beeping car alarm.,-,276.wav,276_rev.wav,-
+A whistle from the train followed by a man narrating.,A man narrating followed by the whistle of a train.,-,277.wav,277_rev.wav,-
+A humming engine concluding with a man speaking,A man speaking concluding with a humming engine,-,278.wav,278_rev.wav,-
+A revving engine followed by a man conversing.,A man conversing followed by a revving engine.,-,279.wav,279_rev.wav,-
+Blaring police siren followed by a man's dialogue,A man's dialogue followed by a blaring police siren,-,280.wav,280_rev.wav,-
+Man speaking before someone sneezes.,Someone sneezes before man speaks.,Man speaks and someone sneezes.,281.wav,281_rev.wav,281_trip.wav
+A man speaks and then clears his throat.,A man clears his throat and then speaks.,-,282.wav,282_rev.wav,-
+A person speaking prior to the sound of a crying baby.,The sound of a crying baby prior to a person speaking.,A person speaking amidst the sound of a crying baby.,283.wav,283_rev.wav,283_trip.wav
+A woman speaks prior to a round of rousing applause.,A round of rousing applause prior to a woman speaking.,A woman speaking amidst a round of rousing applause.,284.wav,284_rev.wav,284_trip.wav
+A man's speech concluding with a sneeze.,A sneeze concluding with a man's speech.,-,281.wav,285_rev.wav,-
+A conversing man followed by a sudden fart.,A sudden fart followed by a conversing man.,A sudden fart amidst a a conversing man.,286.wav,286_rev.wav,286_trip.wav
+Conversations concluding with the sound of hissing.,The sound of hissing concluding with conversations.,Conversations with the sound of hissing in the background.,287.wav,287_rev.wav,287_trip.wav
+People melodiously singing and the humming., People melodiously humming and the singing.,People melodiously singing with humming following suit.,288.wav,288_rev.wav,288_trip.wav
+A person talking followed by gentle humming.,Gentle humming followed by a person talking.,A person talking amidst gentle humming.,289.wav,289_rev.wav,289_trip.wav
+Chatter of people followed by applause.,Applause followed by people engaging in conversation.,Conversation mingled with applause.,290.wav,290_rev.wav,290_trip.wav
+Screaming animal ends in music.,Music ends in screaming animal.,Screaming animal intertwined with music.,291.wav,291_rev.wav,291_trip.wav
+The screeching of a monkey followed by rhythmic music.,Rhythmic music followed by the screeching of a monkey.,-,292.wav,292_rev.wav,-
+A neighing horse followed by melodious music.,Melodious music preceding a neighing horse.,Melodious music mixing with a neighing horse.,293.wav,293_rev.wav,293_trip.wav
+A panting dog followed by melodic tunes.,Melodic tunes giving way to a panting dog.,A panting dog amidst playful musical notes.,294.wav,294_rev.wav,294_trip.wav
+Croaking frog and melodic music taking turns.,Melodic music and croaking frog taking turns.,Croaking frog joining the melodic music.,295.wav,295_rev.wav,295_trip.wav
+Melodious music preceded by a meowing cat.,A meowing cat followed by melodious music.,Melodious music intermixed with a cat's meow.,296.wav,296_rev.wav,296_trip.wav
+A croaking frog transitioned by melodious music.,Melodious music transitioned by a croaking frog.,A croaking frog in harmony with melodious music.,297.wav,297_rev.wav,297_trip.wav
+Roaring followed by melodious tunes.,Melodious tunes followed by a roaring sound.,Roaring amidst melodious tunes.,298.wav,298_rev.wav,298_trip.wav
+A bleating goat followed by melodious tunes,Melodious tunes followed by a bleating goat.,A bleating goat amidst melodious tunes,299.wav,299_rev.wav,299_trip.wav
+Crows cawing prior to the melody playing,Melody playing subsequent to the crows cawing,Crows cawing interspersed with the melody playing,300.wav,300_rev.wav,300_trip.wav
+A neighing horse prior to the melody playing.,The melody playing prior to a horse neighing.,A neighing horse amid the playing music.,301.wav,137_rev.wav,301_trip.wav
+A rumbling whale followed by melodic tunes.,Melodic tunes followed by a rumbling whale.,A rumbling whale alongside melodic tunes.,302.wav,302_rev.wav,302_trip.wav
+"A howling dog, succeeded by harmonious music playing.","Harmonious music playing, succeeded by a howling dog.",A howling dog amidst the harmony of music playing.,303.wav,303_rev.wav,303_trip.wav
+"A roaring animal, followed by rhythmic music.","Rhythmic music, followed by a roaring animal.",A roaring animal harmonizing with rhythmic music.,304.wav,304_rev.wav,304_trip.wav
+Subtle disturbances followed by piercing horn blasts.,Piercing horn blasts followed by subtle disturbances.,-,305.wav,305_rev.wav,-
+Roaring vehicle engine followed by loud shouting,Loud shouting trailed by the roaring of a vehicle engine,-,306.wav,306_rev.wav,-
+A ringing bell followed by the blaring train horn.,The blaring train horn ending with a ringing bell.,-,307.wav,307_rev.wav,-
+The sound of vehicle surface impacts concluding with the noise of a car engine.,The noise of a car engine concluding with the sound of vehicle surface impacts.,-,308.wav,308_rev.wav,-
+"A car revving and accelerating, then followed by a car zooming past","A car zooming past, then followed by the sounds of a car revving and accelerating",-,309.wav,309_rev.wav,-
+Background noise followed by the sound of an engine.,The sound of an engine followed by background noise.,-,310.wav,308_rev.wav,-
+Background noise followed by the hum of engine mechanics.,The hum of engine mechanics followed by some background noise.,-,311.wav,308_rev.wav,-
+Accelerating and revving sounds culminating in the sound of a car horn.,The sound of a car horn culminating in accelerating and revving sounds.,-,312.wav,312_rev.wav,-
+A man speaking prior to the sound of buttons clicking,The sound of buttons clicking prior to a man speaking.,-,313.wav,313_rev.wav,-
+Man detailing about a saw followed by loud whirring,Loud whirring followed by a man detailing about a saw,-,314.wav,314_rev.wav,-
+A man's song followed by radio fuzz,Radio fuzz followed by a man's song,-,315.wav,315_rev.wav,-
+"Melodious voices singing, succeeded by machine static noise.","Machine static noise, succeeded by melodious voices singing.",-,53_rev.wav,316_rev.wav,-
+Chatter of people concludes with the shutter of a camera lens,The shutter of a camera lens concludes with the chatter of people,-,317.wav,317_rev.wav,-
+A man explaining followed by an alarm beeping,An alarm beeping followed by a man explaining,-,318.wav,318_rev.wav,-
+"Harmonious people singing, subsequently followed by static noise","Static noise, subsequently followed by harmonious people singing",-,319.wav,319_rev.wav,-
+A man conversing succeeded by a beeping watch,A beeping watch succeeded by a conversing man,-,320.wav,320_rev.wav,-
+A man speaking followed by a camera shuttering,A camera shuttering followed by a man speaking,-,321.wav,321_rev.wav,-
+A man speaking followed by keypad bleeps.,Keypad bleeps followed by a man speaking.,-,322.wav,322_rev.wav,-
+A man's speech ending with a steam train's whistle,A steam train's whistle ending with a man's speech,-,323.wav,323_rev.wav,-
+A man narrating concluded by electronic interference.,Electronic interference concluded by a man narrating.,-,324.wav,324_rev.wav,-
+A man's speech concludes with the sound of typewriter keystrokes.,The sound of typewriter keystrokes concludes with a man's speech.,-,325.wav,325_rev.wav,-
+"A man speaking, followed by a clicking sound.",A clicking sound followed by a man speaking.,-,326.wav,326_rev.wav,-
+A person conversing followed by the ding of a typewriter.,The ding of a typewriter followed by a person conversing.,-,327.wav,327_rev.wav,-
+A man's narration culminates with a tone.,A tone culminates with a man's narration.,-,328.wav,328_rev.wav,-
+A person speaking followed by the cranking of a ratchet.,The cranking of a ratchet followed by a person speaking.,-,329.wav,329_rev.wav,-
+An individual explaining concludes with the sound of a keyboard typing.,The sound of a keyboard typing concludes with an individual explaining.,-,330.wav,330_rev.wav,-
+A voice speaking prior to the crack of a whip.,The crack of a whip preceding a voice speaking.,A voice intermingled with the crack of a whip.,331.wav,331_rev.wav,331_trip.wav
+A man conversing just before the fire alarm begins buzzing.,A fire alarm begins buzzing just before a man starts to speak.,A man conversing as the fire alarm begins to buzz.,257.wav,332_rev.wav,258_trip.wav
+A man speaking just prior to the mechanical fan's activation.,The mechanical fan's activation occurring just prior to a man speaking.,A man speaking as the mechanical fan begins its operation.,333.wav,333_rev.wav,333_trip.wav
+A conversation precedes the buzzing of an electric shaver.,The buzzing of an electric shaver precedes a conversation.,A conversation intertwines with the buzzing of an electric shaver.,334.wav,334_rev.wav,334_trip.wav
+An individual speaking prior to the operation of a cash register.,A cash register operating prior to an individual speaking.,-,335.wav,335_rev.wav,-
+A man speaking prior to the usage of a cash register.,A cash register being used prior to a man speaking.,A man speaking while a cash register is being used.,336.wav,336_rev.wav,336_trip.wav
+A chirping bird call followed by the echo of walking footsteps.,The echo of walking footsteps followed by a chirping bird call.,-,337.wav,337_rev.wav,-
+The chirping of a bird concludes with a surface contact.,A surface contact concludes with the chirping of a bird.,-,338.wav,338_rev.wav,-
+Birdsong preceding footsteps on a walk.,Footsteps on a walk preceding birdsong.,-,339.wav,339_rev.wav,-
+The call of a bird concludes with the sound of footsteps.,The sound of footsteps concludes with the call of a bird.,-,340.wav,340_rev.wav,-
+A clucking sound succeeded by the touch to the surface.,A touch to the surface succeeded by a clucking sound.,-,341.wav,341_rev.wav,-
+Birdsong preceding walking footsteps.,Walking footsteps followed by a bird's call.,-,342.wav,342_rev.wav,-
+A chirp succeeded by an alarming clock.,An alarming clock succeeded by a chirp.,-,343.wav,343_rev.wav,-
+A bird call followed by a cap gun.,A cap gun followed by a bird call.,-,344.wav,344_rev.wav,-
+A chirp swiftly overtaken by the echo of weapon fire,The echo of weapon fire swiftly overtaken by a chirp.,-,345.wav,345_rev.wav,-
+A chirp preceding a gunshot,A gunshot preceding a chirp,-,346.wav,346_rev.wav,-
+A bird's call preceding a gunshot.,A gunshot preceding a bird's call.,-,347.wav,344_rev.wav,-
+A bird's call concluded by a tapping sound.,A tapping sound concluded by a bird's call.,-,348.wav,348_rev.wav,-
+A bird call succeeded by the tapping sound.,The tapping sound succeeded by a bird call.,-,349.wav,349_rev.wav,-
+A bird call before the tap sound,The sound of a tap followed by a bird call,-,350.wav,350_rev.wav,-
+Bird vocalization concludes with a tap,A tap concludes with bird vocalization,-,351.wav,351_rev.wav,-
+A huffing dog succeeded by snapping fingers.,Snapping fingers succeeded by a huffing dog.,-,352.wav,352_rev.wav,-
+A screeching animal followed by audible flatulence.,Audible flatulence followed by a screeching animal.,-,296_trip.wav,353_rev.wav,-
+A caterwauling cat followed by a person's breath.,A person's breath followed by a caterwauling cat.,-,354.wav,354_rev.wav,-
+An animal's scream concluded by a chatter of speech.,A chatter of speech concluding with an animal's scream.,A mingling of speech babble and animal screams.,355.wav,355_rev.wav,355_trip.wav
+A squealing dog followed by human chatter.,Human chatter followed by a squealing dog.,A squealing dog amid human chatter.,356.wav,356_rev.wav,356_trip.wav
+A bird's tweet concludes with a slap or smack.,A slap or smack concludes with a bird's tweet.,-,357.wav,357_rev.wav,-
+"Birds chirping and tweeting, followed by the clip-clop of hooves",The clip-clop of hooves followed by the chirping and tweeting of birds.,-,358.wav,358_rev.wav,-
+A bird call concluding with a slam sound,A slam sound concluding with a bird call.,-,359.wav,359_rev.wav,-
+An engine revving succeeded by audible breathing.,Audible breathing succeeded by an engine revving.,-,360.wav,360_rev.wav,-
+Engine roaring followed by crowd erupting in cheer,Crowd erupting in cheer followed by engine roaring,-,361.wav,361_rev.wav,-
+An engine revving succeeded by people engaged in conversation,People engaged in conversation succeeded by an engine revving,-,362.wav,165.wav,-
+An engine revving prior to people conversing,People conversing prior to an engine revving,-,363.wav,363_rev.wav,-
+"An engine revving, succeeded by people chatting","People chatting, succeeded by an engine revving",-,364.wav,364_rev.wav,-
+A booming explosion succeeded by people talking.,People talking succeeded by a booming explosion.,-,365.wav,365_rev.wav,-
+"The cascading sound of water pouring into a jug, followed by a profound sigh.",A profound sigh followed by the soothing sound of water cascade into a jug.,-,366.wav,366_rev.wav,-
+Water splashing followed by the laughter of people.,The laughter of people followed by a water splashing.,-,367.wav,367_rev.wav,-
+The sound of a jar being filled followed by human verbalization.,Human verbalization followed by the sound of a jar being filled.,-,368.wav,368_rev.wav,-
+A person talking followed by the roar of a chainsaw.,The roar of a chainsaw followed by a person talking.,-,369.wav,369_rev.wav,-
+"A person speaking, followed by intense drilling noises.",Intense drilling noises followed by a person speaking.,-,370.wav,370_rev.wav,-
+Hammering commencing after someone converses.,Someone converses following the commencement of hammering.,-,371.wav,371_rev.wav,-
+"A voice speaking, then followed by distinct hammering.","Distinct hammering, then followed by a voice speaking.",-,372.wav,372_rev.wav,-
+A man conversing prior to intense drilling sounds.,Intense drilling sounds prior to a man conversing.,-,373.wav,373_rev.wav,-
+A man speaking followed by the buzz of a power tool.',The buzz of a power tool followed by a man speaking.,-,374.wav,374_rev.wav,-
+The buzz of a power tool following a man's speech.,A man's speech preceding the buzz of a power tool.,-,375.wav,375_rev.wav,-
+"A man speaking, succeeded by the rasp of sawing.","The rasp of sawing, succeeded by a man speaking.",-,376.wav,376_rev.wav,-
+A man conversing before the whirring of a power tool.,The whirring of a power tool before a man converses.,-,377.wav,377_rev.wav,-
+"A man speaking, followed by the a power tool.","A power tool followed by a man speaking.",-,378.wav,378_rev.wav,-
+A man conversing prior to intense drilling.,Intense drilling prior to a man's conversation.,-,379.wav,379_rev.wav,-
+Droplets of water trickling down followed by a vehicle zooming past.,A vehicle zooming past followed by droplets of water trickling down.,-,380.wav,380_rev.wav,-
+A woman's conversation followed by the ringing of a telephone.,The ringing of a telephone followed by a woman's conversation.,A woman's conversation together with a ringing telephone.,381.wav,381_rev.wav,381_trip.wav
+A man's speech followed by the ringing of a mobile.,The ringing of a mobile followed by a man's speech.,A man's speech alongside the ringing of a mobile.,382.wav,382_rev.wav,382_trip.wav
+A man conversing followed by a resonant telephone ring.,A resonant telephone ring followed by a man's conversation.,A man's conversation accompanied by a resonant telephone ring.,383.wav,383_rev.wav,383_trip.wav
+A conversation concludes with a telephone ringing.,A ringing telephone concludes with a conversation.,-,282_rev.wav,384_rev.wav,-
+A man's dialogue followed by a ringing telephone.,A ringing telephone followed by a man's dialogue.,A man's dialogue blended with a ringing telephone.,385.wav,385_rev.wav,385_trip.wav
+A ringing telephone prior to a man conversing.,A man conversing prior to a ringing telephone.,A ringing telephone amidst a man conversing.,386.wav,386_rev.wav,386_trip.wav
+A person conversing merged with a telephone ringing sequentially.,A telephone ringing merged with a person conversing sequentially.,A sequential blend of a conversing person and a ringing telephone.,387.wav,387_rev.wav,381_trip.wav
+A conversation accompanied by successive telephone rings.,Successive telephone rings accompanied by a conversation.,-,388.wav,388_rev.wav,-
+"A man conversing, followed by the ringing of a telephone.","The ringing of a telephone, followed by a man conversing.",A man conversing amidst the ringing of a telephone.,389.wav,389_rev.wav,389_trip.wav
+A man's voice followed by a ringing telephone.,A ringing telephone proceeded by a man's voice.,A man's voice amidst the sound of a ringing telephone.,390.wav,390_rev.wav,390_trip.wav
+A conversation occurring prior to the telephone chime.,The telephone chime occurring prior to a conversation.,A conversation interleaved with a telephone chime.,391.wav,391_rev.wav,391_trip.wav
+A man's speech leading into a telephone ring.,A telephone ring leading into a man's speech.,-,392.wav,392_rev.wav,-
+A man conversing prior to the ringing of a telephone.,A telephone ringing prior to a man conversing.,-,393.wav,393_rev.wav,-
+"A man conversing, followed by a telephone ringing.","A telephone ringing, followed by a man conversing.",-,394.wav,394_rev.wav,-
+A man conversing prior to a telephone ringing.,A telephone ringing prior to a man conversing.,-,395.wav,395_rev.wav,-
+A man engaging in conversation followed by the ringing of a mobile.,The ringing of a mobile followed by a man engaging in a conversation.,-,396.wav,396_rev.wav,-
+Thunderstorm and rain followed by melodious sound effects.,Melodious sound effects followed by a thunderstorm and rain.,-,397.wav,397_rev.wav,-
+Melodious music followed by a majestic whale's call.,A majestic whale's call followed by melodious music.,-,398.wav,398_rev.wav,-
+Thunderous claps and raindrops followed by harmonious music.,Harmonious music followed by thunderous claps and raindrops.,-,399.wav,399_rev.wav,-
+The sound of rainfall followed by melodic music.,Melodic music followed by the sound of rainfall.,-,400.wav,400_rev.wav,-

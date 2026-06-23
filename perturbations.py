@@ -1198,10 +1198,10 @@ if __name__ == "__main__":
     print("after import")
 
 
-    INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/ah_existence.json"
-    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/no_audio_ah_existence.json"
+    INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/ah_attribute.json"
+    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/no_audio_ah_attribute.json"
 
-    OUTPUT_AUDIO_DIR = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_audio"
+    OUTPUT_AUDIO_DIR = "/data/not_backed_up/cosgrv/af3_project/ah_existence/_attribute_perturbed_audio"
     os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
 
     print("start")
