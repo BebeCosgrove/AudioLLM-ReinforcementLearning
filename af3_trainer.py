@@ -342,9 +342,11 @@ def mdpo_loss(
     anchor_logits = policy_chosen_logps - reference_chosen_logps  # anchored preference
 
     # mDPO 
-    losses = -torch.nn.functional.logsigmoid(beta * logits) \
-            -torch.nn.functional.logsigmoid(beta * audio_conditional_logits) \
-            # -torch.nn.functional.logsigmoid(beta * anchor_logits)
+    losses = -torch.nn.functional.logsigmoid(beta * logits)\
+        -torch.nn.functional.logsigmoid(beta * audio_conditional_logits) \
+        #-torch.nn.functional.logsigmoid(beta * anchor_logits)
+    
+            
 
     chosen_rewards = (
         beta * (policy_chosen_logps - reference_chosen_logps).detach()

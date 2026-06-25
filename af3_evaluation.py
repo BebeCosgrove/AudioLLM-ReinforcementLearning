@@ -78,7 +78,7 @@ def evaluate(model, processor, dataset):
 def run_evaluation():
 
     #data
-    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/original_datasets/ah_existence_test.json") as f:
+    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_split_data/no_audio_test_fold5.json") as f:
         data = json.load(f)
 
 
