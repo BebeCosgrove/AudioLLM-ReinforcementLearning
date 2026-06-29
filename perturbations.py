@@ -1198,10 +1198,10 @@ if __name__ == "__main__":
     print("after import")
 
 
-    INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/ah_attribute.json"
-    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_datasets/no_audio_ah_attribute.json"
+    INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/combined_json/dcase_train.json"
+    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/combined_json/dcase_train_no_audio.json"
 
-    OUTPUT_AUDIO_DIR = "/data/not_backed_up/cosgrv/af3_project/ah_existence/_attribute_perturbed_audio"
+    OUTPUT_AUDIO_DIR = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_audio/dcase_no_audio"
     os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
 
     print("start")
@@ -1225,12 +1225,14 @@ if __name__ == "__main__":
         if i % 100 == 0:
             print(f"Processing {i}/{len(data)}")
 
-        audio_path = item["path"]
+        audio_path = item["audio_url"]
+        print(audio_path)
+        print(os.path.exists(audio_path))
 
         try:
             audio, _ = librosa.load(audio_path, sr=16000)
         except Exception as e:
-            print(f"Failed: {audio_path}")
+            #print(f"Failed: {audio_path}")
             continue
 
         pert_audio = pert_fn(audio)

@@ -343,8 +343,8 @@ def mdpo_loss(
 
     # mDPO 
     losses = -torch.nn.functional.logsigmoid(beta * logits)\
-        -torch.nn.functional.logsigmoid(beta * audio_conditional_logits) \
-        #-torch.nn.functional.logsigmoid(beta * anchor_logits)
+        -torch.nn.functional.logsigmoid(beta * anchor_logits)
+    #-torch.nn.functional.logsigmoid(beta * audio_conditional_logits)
     
             
 
