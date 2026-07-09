@@ -1,0 +1,10 @@
+dcase_2025/
+mdpo_runs/
+wandb/
+*.wav
+*.zip
+*.tar.gz
+*.safetensors
+*.pt
+*.bin
+__pycache__/
