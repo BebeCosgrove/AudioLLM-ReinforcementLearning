@@ -1198,8 +1198,8 @@ if __name__ == "__main__":
     print("after import")
 
 
-    INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/combined_json/dcase_train.json"
-    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/combined_json/dcase_train_no_audio.json"
+    INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/combined_json/dcase_split_validation.json"
+    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_val_no_audio.json"
 
     OUTPUT_AUDIO_DIR = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_audio/dcase_no_audio"
     os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)

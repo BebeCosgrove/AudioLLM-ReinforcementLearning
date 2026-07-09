@@ -8,6 +8,7 @@ import os
 import peft
 from peft import LoraConfig, get_peft_model
 import wandb
+import re
 
 
 #make dataset into pytorch dataset
@@ -41,8 +42,17 @@ class AudioMDPOCollator:
             audio_path = ex["audio_url"]
             perturbed_audio_path = ex["perturbed_path"]  # already absolute
 
+            # MAX_AUDIO_SECONDS = 10
+            # MAX_AUDIO_SAMPLES = 16000 * MAX_AUDIO_SECONDS
+
             audio = librosa.load(audio_path, sr=16000, mono=True)[0]
+            #audio = audio[:MAX_AUDIO_SAMPLES]
+
             perturbed_audio = librosa.load(perturbed_audio_path, sr=16000, mono=True)[0]
+            #perturbed_audio = perturbed_audio[:MAX_AUDIO_SAMPLES]
+
+            choices_text = "\n".join(ex["choice"])
+            full_question = f"{ex['question']}\n{choices_text}"
 
             chosen_convs.append([
                 {
@@ -50,29 +60,29 @@ class AudioMDPOCollator:
                     "content": [
                         {
                             "type": "text",
-                            "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
+                            "text": "Focus on the given audio and answer the following multiple-choice question. Respond with only the letter of the correct answer (A, B, C, or D)."
                         }
                     ]
                 },
                 {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": ex["Q"]
-                        },
-                        {
-                            "type": "audio",
-                            "path": audio
-                        }
-                    ]
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": full_question
+                    },
+                    {
+                        "type": "audio",
+                        "path": audio
+                    }
+                ]
                 },
                 {
                     "role": "assistant",
                     "content": [
                         {
                             "type": "text",
-                            "text": ex["text"]
+                            "text": ex["answer"]
                         }
                     ]
                 }
@@ -84,7 +94,7 @@ class AudioMDPOCollator:
                     "content": [
                         {
                             "type": "text",
-                            "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
+                            "text": "Focus on the given audio and answer the following multiple-choice question. Respond with only the letter of the correct answer (A, B, C, or D)."
                         }
                     ]
                 },
@@ -93,7 +103,7 @@ class AudioMDPOCollator:
                     "content": [
                         {
                             "type": "text",
-                            "text": ex["Q"]
+                            "text": full_question
                         },
                         {
                             "type": "audio",
@@ -118,7 +128,7 @@ class AudioMDPOCollator:
                     "content": [
                         {
                             "type": "text",
-                            "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
+                            "text": "Focus on the given audio and answer the following multiple-choice question. Respond with only the letter of the correct answer (A, B, C, or D)."
                         }
                     ]
                 },
@@ -127,7 +137,7 @@ class AudioMDPOCollator:
                     "content": [
                         {
                             "type": "text",
-                            "text": ex["Q"]
+                            "text": full_question
                         },
                         {
                             "type": "audio",
@@ -140,7 +150,7 @@ class AudioMDPOCollator:
                     "content": [
                         {
                             "type": "text",
-                            "text": ex["text"]
+                            "text": ex["answer"]
                         }
                     ]
                 }
@@ -152,14 +162,14 @@ class AudioMDPOCollator:
                     "content": [
                         {
                             "type": "text",
-                            "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
+                            "text": "Focus on the given audio and answer the following multiple-choice question. Respond with only the letter of the correct answer (A, B, C, or D)."
                         }
                     ]
                 },
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": ex["Q"]},
+                        {"type": "text", "text": full_question},
                         {"type": "audio", "path": audio}
                     ]
                 }
@@ -172,14 +182,14 @@ class AudioMDPOCollator:
                 "content": [
                     {
                         "type": "text",
-                        "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
+                        "text": "Focus on the given audio and answer the following multiple-choice question. Respond with only the letter of the correct answer (A, B, C, or D)."
                     }
                 ]
             },
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": ex["Q"]},
+                        {"type": "text", "text": full_question},
                         {
                             "type": "audio",
                             "path": perturbed_audio
@@ -195,7 +205,7 @@ class AudioMDPOCollator:
                     "content": [
                         {
                             "type": "text",
-                            "text": ex["text"]
+                            "text": ex["answer"]
                         }
                     ]
                 }
@@ -305,10 +315,12 @@ class AudioMDPOCollator:
 
 
         return {
-        "chosen": chosen_inputs,
-        "rejected": rejected_inputs,
-        "perturbed": perturbed_inputs
-        }
+    "chosen": chosen_inputs,
+    "rejected": rejected_inputs,
+    "perturbed": perturbed_inputs,
+    "ids": [ex["id"] for ex in examples],
+    "audio_urls": [ex["audio_url"] for ex in examples],
+}
 
 
 def mdpo_loss(
@@ -342,7 +354,7 @@ def mdpo_loss(
     # mDPO 
     losses = -torch.nn.functional.logsigmoid(beta * logits)\
         -torch.nn.functional.logsigmoid(beta * anchor_logits)
-    #-torch.nn.functional.logsigmoid(beta * audio_conditional_logits)
+    -torch.nn.functional.logsigmoid(beta * audio_conditional_logits)
     
             
 
@@ -359,51 +371,84 @@ def mdpo_loss(
     return losses, chosen_rewards, rejected_rewards, perturbed_rewards
 
 
+# def get_sequence_logps(logits, labels):
+#     #makes the logits and labels aligned from the shift
+#     shift_logits = logits[:, :-1, :]
+#     shift_labels = labels[:, 1:]
+
+#     #convert logits -> log probabilities
+#     log_probs = torch.log_softmax(shift_logits.float(), dim=-1)
+
+#     mask = shift_labels != -100 # bool for where tokens are/ aren't -100
+#     safe_labels = shift_labels.clone()
+#     safe_labels[~mask] = 0 # replaces places that were -100 with a 0 because gather uses 0
+
+#     token_logps = log_probs.gather(
+#         dim=-1,
+#         index=safe_labels.unsqueeze(-1)
+#     ).squeeze(-1)
+
+#     return (token_logps * mask).sum(dim=-1)
+
 def get_sequence_logps(logits, labels):
-    #makes the logits and labels aligned from the shift
-    shift_logits = logits[:, :-1, :]
+    shift_logits = logits[:, :-1, :].float()
     shift_labels = labels[:, 1:]
 
-    #convert logits -> log probabilities
     log_probs = torch.log_softmax(shift_logits, dim=-1)
 
-    mask = shift_labels != -100 # bool for where tokens are/ aren't -100
+    mask = shift_labels != -100
     safe_labels = shift_labels.clone()
-    safe_labels[~mask] = 0 # replaces places that were -100 with a 0 because gather uses 0
+    safe_labels[~mask] = 0
 
     token_logps = log_probs.gather(
         dim=-1,
         index=safe_labels.unsqueeze(-1)
     ).squeeze(-1)
 
-    return (token_logps * mask).sum(dim=-1)
+    token_counts = mask.sum(dim=-1).clamp(min=1)
+    seq_logps = (token_logps * mask).sum(dim=-1)
+
+    
+
+    if torch.isnan(seq_logps).any() or torch.isinf(seq_logps).any():
+        print("NaN in logits:", torch.isnan(logits).any().item())
+        print("Inf in logits:", torch.isinf(logits).any().item())
+        print("labels valid counts:", (labels[:, 1:] != -100).sum(dim=1))
+        raise RuntimeError("NaN/Inf in sequence logps")
+
+    return seq_logps
 
 
 def evaluate(model, processor, dataset):
     correct = 0
-    BASE_DIR = "/data/not_backed_up/cosgrv/af3_project/ah_existence"
+    #results = []
+
     for ex in dataset:
         
-        audio_path = os.path.join(BASE_DIR, ex["path"])
+        audio_path = ex["audio_url"]
             
         audio = librosa.load(audio_path, sr=16000, mono=True)[0]
+
+        # Build the question with choices included
+        choices_text = "\n".join(ex["choice"])
+        full_question = f"{ex['question']}\n{choices_text}"
     
         conv = [
             {
-                    "role": "system",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Focus on the given audio and answer the following question with exactly one word: yes or no."
-                        }
-                    ]
-                },
+                "role": "system",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Focus on the given audio and answer the following multiple-choice question. Respond with only the letter of the correct answer (A, B, C, or D)."
+                    }
+                ]
+            },
             {
                 "role": "user",
                 "content": [
                     {
                         "type": "text",
-                        "text": ex["Q"]
+                        "text": full_question
                     },
                     {
                         "type": "audio",
@@ -423,7 +468,7 @@ def evaluate(model, processor, dataset):
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
         # Cast input_features to match model dtype
-        inputs["input_features"] = inputs["input_features"].to(torch.bfloat16)
+        #inputs["input_features"] = inputs["input_features"].to(torch.bfloat16)
 
         output_ids = model.generate(**inputs, max_new_tokens=16, do_sample=False)
 
@@ -432,15 +477,38 @@ def evaluate(model, processor, dataset):
         #     skip_special_tokens=True
         # )
 
-        gt = ex["text"]
+        gt = ex["answer"]
+
 
         response_ids = output_ids[:, inputs["input_ids"].shape[1]:]
         pred = processor.tokenizer.decode(response_ids[0], skip_special_tokens=True)
 
-        if pred.strip().lower() == gt.strip().lower():
+        pred_letter = extract_choice_letter(pred)
+        gt_letter = extract_choice_letter(gt)
+
+        # results.append({
+        #     "id": ex["id"],
+        #     "question": ex["question"],
+        #     "answer": gt,
+        #     "prediction": pred,
+        #     "pred_letter": pred_letter,
+        #     "gt_letter": gt_letter,
+        #     "correct": pred_letter == gt_letter,
+        #     "audio_url": audio_path,
+        # })
+
+        if pred_letter == gt_letter:
             correct += 1
 
+    # with open("dcase_baseline_results.json", "w") as f:
+    #     json.dump(results, f, indent=2)
+
     return correct / len(dataset)
+
+def extract_choice_letter(text):
+    """Extract the choice letter (A, B, C, D) from a response or answer string."""
+    match = re.search(r'\b([A-D])\b', text.strip().upper())
+    return match.group(1) if match else None
 
 
 
@@ -452,8 +520,8 @@ def run():
         project="af3-mdpo",
         config={
             "beta": beta,
-            "lr": 5e-6,
-            "batch_size": 2,
+            "lr": 1e-6,
+            "batch_size": 6,
             "epochs": 2,
             "lora_r": 8,
             "lora_alpha": 16,
@@ -472,20 +540,33 @@ def run():
     
     model_id = "nvidia/audio-flamingo-3-hf"
     processor = AutoProcessor.from_pretrained(model_id)
+    processor.max_audio_len = 600
     #policy model
     policy_model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
-        model_id,
-        device_map="auto",
-        torch_dtype=torch.bfloat16
-    )
+    model_id,
+    device_map="auto",
+    torch_dtype=torch.float32
+)
 
     policy_model = get_peft_model(policy_model, lora_config)
 
+    policy_model.config.use_cache = False
+    policy_model.gradient_checkpointing_enable()
 
-    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_split_data/no_audio_train_fold5.json") as f:
+    
+    policy_model.audio_tower.float()
+    policy_model.multi_modal_projector.float()
+
+    CHECKPOINT_DIR = "/data/not_backed_up/cosgrv/af3_project/mdpo_runs"
+
+    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+
+
+    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_no_audio_final.json") as f:
         data = json.load(f)
 
-    with open("/data/not_backed_up/cosgrv/af3_project/ah_existence/perturbed_split_data/no_audio_val_fold5.json") as f:
+
+    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_val_no_audio_final.json") as f:
         val_data = json.load(f)
 
 
@@ -499,16 +580,19 @@ def run():
     # get dataloader
     loader = DataLoader(
         train_dataset,
-        batch_size=8,
+        batch_size=6,
         shuffle=True,
         collate_fn= collator
     )
 
-    
-    #optimizer with 1e-6 learning rate
-    optimizer = torch.optim.AdamW(policy_model.parameters(), lr=5e-6)
+    print("Dataset size:", len(train_dataset))
+    print("Number of batches:", len(loader))
 
     
+    #optimizer with 1e-6 learning rate
+    optimizer = torch.optim.AdamW(policy_model.parameters(), lr=1e-6)
+
+    global_step = 0
     for epoch in range(3):
         #training mode
         policy_model.train()
@@ -521,17 +605,9 @@ def run():
             rejected_inputs = batch["rejected"]
             perturbed_inputs = batch["perturbed"]  
 
-            chosen_inputs["input_features"] = (
-            chosen_inputs["input_features"].to(torch.bfloat16)
-            )
-
-            rejected_inputs["input_features"] = (
-                rejected_inputs["input_features"].to(torch.bfloat16)
-            )
-
-            perturbed_inputs["input_features"] = (
-                perturbed_inputs["input_features"].to(torch.bfloat16)
-            )
+            # chosen_inputs["input_features"] = chosen_inputs["input_features"].float()
+            # rejected_inputs["input_features"] = rejected_inputs["input_features"].float()
+            # perturbed_inputs["input_features"] = perturbed_inputs["input_features"].float()
                 
             #pops labels and moves the tensors to gpu
             chosen_labels = chosen_inputs.pop("labels")
@@ -550,6 +626,8 @@ def run():
             chosen_labels = chosen_labels.to(policy_model.device)
             rejected_labels = rejected_labels.to(policy_model.device)
             perturbed_labels = perturbed_labels.to(policy_model.device)
+            print("Batch ids:", batch["ids"])
+            print("Batch audio:", batch["audio_urls"])
 
             #forward pass
             policy_chosen_outputs = policy_model(**chosen_inputs)
@@ -559,11 +637,14 @@ def run():
             print(f"[After forward] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
             #freezes reference model
+
             with policy_model.disable_adapter():
                 with torch.no_grad():
                     reference_chosen_outputs = policy_model(**chosen_inputs)
                     reference_rejected_outputs = policy_model(**rejected_inputs)
                     reference_perturbed_outputs = policy_model(**perturbed_inputs)
+
+            print("NaN:", torch.isnan(policy_chosen_outputs.logits).any().item())
 
             #logps
             policy_chosen_logps = get_sequence_logps(policy_chosen_outputs.logits, chosen_labels)
@@ -599,20 +680,23 @@ def run():
             print(f"[After loss] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
             wandb.log({
-                "epoch": epoch,
-                "loss": loss.item(),
-                "chosen_reward": chosen_reward_mean,
-                "rejected_reward": rejected_reward_mean,
-                "perturbed_reward": perturbed_reward_mean,
-                "reward_margin": chosen_reward_mean - rejected_reward_mean,
-            })
+            "train/step": global_step,
+            "train/loss": loss.item(),
+            "train/chosen_reward": chosen_reward_mean,
+            "train/rejected_reward": rejected_reward_mean,
+            "train/perturbed_reward": perturbed_reward_mean,
+            "train/reward_margin": chosen_reward_mean - rejected_reward_mean,
+            }, step=global_step)
+
+            global_step += 1
 
             # backward + update
             optimizer.zero_grad()
             loss.backward()
             print(f"[After step] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
-        
             
+        
+            #torch.nn.utils.clip_grad_norm_(policy_model.parameters(), max_norm=1.0)
             optimizer.step()
 
             del policy_chosen_outputs, policy_rejected_outputs, policy_perturbed_outputs
@@ -636,9 +720,21 @@ def run():
         )
 
         wandb.log({
-        "epoch": epoch,
-        "val_accuracy": val_acc,
-        })
+            "val/accuracy": val_acc,
+            "epoch": epoch,
+        }, step=global_step)
+
+        checkpoint_path = os.path.join(CHECKPOINT_DIR, f"checkpoint-epoch-{epoch+1}")
+
+        checkpoint_path = os.path.join(
+        CHECKPOINT_DIR,
+        f"checkpoint-epoch-{epoch+1}"
+    )
+
+        policy_model.save_pretrained(checkpoint_path)
+        processor.save_pretrained(checkpoint_path)
+
+        print(f"Saved checkpoint to {checkpoint_path}")
         
 
     policy_model.save_pretrained("/data/not_backed_up/cosgrv/af3_project/mdpo_runs/checkpoint-final")
