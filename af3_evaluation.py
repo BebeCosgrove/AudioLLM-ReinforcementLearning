@@ -141,10 +141,10 @@ def extract_choice_letter(text):
 def run_evaluation():
     
     #data
-    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/combined_json/dcase_dev_librosa_valid.json") as f:
+    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/combined_json/dcase_split_test.json") as f:
         data = json.load(f)
 
-    # data = data[:500]
+    data = data[:500]
 
     # LONG_AUDIO_SECONDS = 30
 
