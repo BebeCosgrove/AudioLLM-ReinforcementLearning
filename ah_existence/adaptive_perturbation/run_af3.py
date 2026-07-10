@@ -64,6 +64,13 @@ along with L1, L3, L-infinity, cosine distance, and KL divergence for broader
 comparative analysis. The runner also checkpoints long jobs, resumes incomplete
 evaluations, writes final RunResult/SampleResult records, and updates per-
 directory summaries without retraining the model.
+
+Time-usage profiling
+-----------------------
+Pass --profile (optionally --profile-detailed and --profile-max-batches) to
+measure exactly where time and GPU/CPU memory go, without changing any model
+behavior or output. See helpers/profiling.py. Disabled by default and a true
+no-op on that path.
 """
 
 import json
@@ -83,6 +90,7 @@ from adaptive_perturbation.perturbations import (
 from helpers.config import Config, make_config
 from helpers.process_results import SampleResult, RunResult, save_run_result
 from helpers.run_helpers import *
+from helpers.profiling import Profiler, get_profile_report_path
 
 # --- Configuration ---
 Config.model = "af3"
@@ -96,6 +104,12 @@ BATCH_SIZE = Config.default_batch_size
 MAX_NEW_TOKENS = Config.default_max_new_tokens
 PREFIX_PROMPT = Config.run_prompt
 CHECKPOINT_INTERVAL = 10
+
+# Shared profiler instance — disabled (true no-op) unless a run explicitly passes
+# profile=True. Reassigned per-run in main() / spot_check_run() / run_audit() once
+# the --profile flag is known, then referenced directly as a module global from
+# process_batch()/AudioLogitsProcessor so no function signatures need to change.
+PROFILER = Profiler(enabled=False)
 
 
 set_random_seed(42)
@@ -118,6 +132,7 @@ class AudioLogitsProcessor(LogitsProcessor):
         self.softmax_distances: list = [None] * self.batch_size
         self.yes_token_ids = self._token_ids_by_text(["Yes", "yes"])
         self.no_token_ids = self._token_ids_by_text(["No", "no"])
+        self._step_idx = 0  # decode-step counter, used to tag profiler samples
 
     def _first_token_id(self, text):
         token_ids = self.tokenizer.encode(text, add_special_tokens=False)
@@ -148,72 +163,87 @@ class AudioLogitsProcessor(LogitsProcessor):
         # `scores` = raw logits for the next token from the CLEAN audio forward pass,
         # provided by HuggingFace's generate() loop at each decoding step.
         target_device = scores.device
+        step = self._step_idx
 
         with torch.no_grad():
-            if self.first_call:
-                # On step 0 the negative embeddings are the full prompt (audio + text).
-                # Move them to the same device as the clean branch.
-                self.embeds_neg = self.embeds_neg.to(target_device)
-                self.atts_neg = self.atts_neg.to(target_device)
-            else:
-                # On subsequent steps append the last generated token to the negative
-                # sequence so both branches stay in sync token-by-token.
-                new_tokens = input_ids[:, -1:].to(target_device)
-                new_embeds = self.model.get_input_embeddings()(new_tokens).to(target_device)
-                self.embeds_neg = torch.cat([self.embeds_neg, new_embeds], dim=1)
-                new_atts = (new_tokens != self.tokenizer.eos_token_id).to(dtype=self.atts_neg.dtype).to(target_device)
-                self.atts_neg = torch.cat([self.atts_neg, new_atts], dim=1)
+            # Isolated from the forward pass below: this is the growing-tensor
+            # embed/concat cost (O(sequence length) tensor copy every step).
+            with PROFILER.section("aad_step_embed_concat", step=step, batch_size=self.batch_size):
+                if self.first_call:
+                    # On step 0 the negative embeddings are the full prompt (audio + text).
+                    # Move them to the same device as the clean branch.
+                    self.embeds_neg = self.embeds_neg.to(target_device)
+                    self.atts_neg = self.atts_neg.to(target_device)
+                else:
+                    # On subsequent steps append the last generated token to the negative
+                    # sequence so both branches stay in sync token-by-token.
+                    new_tokens = input_ids[:, -1:].to(target_device)
+                    new_embeds = self.model.get_input_embeddings()(new_tokens).to(target_device)
+                    self.embeds_neg = torch.cat([self.embeds_neg, new_embeds], dim=1)
+                    new_atts = (new_tokens != self.tokenizer.eos_token_id).to(dtype=self.atts_neg.dtype).to(target_device)
+                    self.atts_neg = torch.cat([self.atts_neg, new_atts], dim=1)
 
             # Run the model on the NEGATIVE (perturbed) audio embeddings to get its
             # next-token distribution. We only need the last position's logits.
-            out_neg = self.model(inputs_embeds=self.embeds_neg, attention_mask=self.atts_neg)
+            # This is the prime suspect for O(N^2) decode cost: no past_key_values
+            # is passed/reused, so every step reprocesses the full growing sequence.
+            with PROFILER.section(
+                "aad_negative_forward", step=step, batch_size=self.batch_size,
+                seq_len=int(self.embeds_neg.shape[1]),
+            ):
+                out_neg = self.model(inputs_embeds=self.embeds_neg, attention_mask=self.atts_neg)
             logits_neg = out_neg.logits[:, -1, :]
 
         # AAD contrastive formula: amplify the clean signal and subtract the perturbed one.
         # alpha=1.0 -> modified = 2*original - negative (equal-weight contrast).
         modified_logits = (1 + self.alpha) * scores - self.alpha * logits_neg
 
-        for i in range(self.batch_size):
-            if self.first_call:
-                # Compute and store softmax distances for VACoDe-style selection.
-                # Done only at step 0: that's when the audio representation matters most
-                # (subsequent steps are just token predictions conditioned on the answer so far).
-                # scores[i] = clean logits, logits_neg[i] = perturbed logits, both [vocab_size].
-                self.softmax_distances[i] = compute_softmax_distances(scores[i], logits_neg[i])
-                tid = self.target_token_ids[i]
-                orig_l, mod_l = scores[i, tid].item(), modified_logits[i, tid].item()
-                neg_l = logits_neg[i, tid].item()
-                orig_p = torch.softmax(scores[i], dim=-1)[tid].item()
-                mod_p = torch.softmax(modified_logits[i], dim=-1)[tid].item()
-                neg_p = torch.softmax(logits_neg[i], dim=-1)[tid].item()
+        # Isolated separately: this "just logging" block does many .item()/tokenizer.decode()
+        # calls per step (each .item() forces a GPU sync) — tests whether diagnostics
+        # collection itself, not just the negative forward pass, is a real cost driver.
+        with PROFILER.section("aad_step_diagnostics", step=step, batch_size=self.batch_size):
+            for i in range(self.batch_size):
+                if self.first_call:
+                    # Compute and store softmax distances for VACoDe-style selection.
+                    # Done only at step 0: that's when the audio representation matters most
+                    # (subsequent steps are just token predictions conditioned on the answer so far).
+                    # scores[i] = clean logits, logits_neg[i] = perturbed logits, both [vocab_size].
+                    self.softmax_distances[i] = compute_softmax_distances(scores[i], logits_neg[i])
+                    tid = self.target_token_ids[i]
+                    orig_l, mod_l = scores[i, tid].item(), modified_logits[i, tid].item()
+                    neg_l = logits_neg[i, tid].item()
+                    orig_p = torch.softmax(scores[i], dim=-1)[tid].item()
+                    mod_p = torch.softmax(modified_logits[i], dim=-1)[tid].item()
+                    neg_p = torch.softmax(logits_neg[i], dim=-1)[tid].item()
 
-                self.step0_metrics[i] = {
-                    "token": self.tokenizer.decode([tid]),
-                    "original_logit": round(orig_l, 4),
-                    "negative_logit": round(neg_l, 4),
-                    "modified_logit": round(mod_l, 4),
-                    "logit_delta": round(mod_l - orig_l, 4),
-                    "original_prob": round(orig_p, 6),
-                    "negative_prob": round(neg_p, 6),
-                    "modified_prob": round(mod_p, 6),
-                    "prob_delta": round(mod_p - orig_p, 6)
-                }
+                    self.step0_metrics[i] = {
+                        "token": self.tokenizer.decode([tid]),
+                        "original_logit": round(orig_l, 4),
+                        "negative_logit": round(neg_l, 4),
+                        "modified_logit": round(mod_l, 4),
+                        "logit_delta": round(mod_l - orig_l, 4),
+                        "original_prob": round(orig_p, 6),
+                        "negative_prob": round(neg_p, 6),
+                        "modified_prob": round(mod_p, 6),
+                        "prob_delta": round(mod_p - orig_p, 6)
+                    }
 
-            step_log = {
-                "step": len(self.batch_logs[i]),
-                "original_top10": self._get_top(scores[i]),
-                "negative_top10": self._get_top(logits_neg[i]),
-                "modified_top10": self._get_top(modified_logits[i])
-            }
-            if self.first_call:
-                step_log["yes_no_logits"] = {
-                    "original": self._get_yes_no_logits(scores[i]),
-                    "negative": self._get_yes_no_logits(logits_neg[i]),
-                    "modified": self._get_yes_no_logits(modified_logits[i]),
+                step_log = {
+                    "step": len(self.batch_logs[i]),
+                    "original_top10": self._get_top(scores[i]),
+                    "negative_top10": self._get_top(logits_neg[i]),
+                    "modified_top10": self._get_top(modified_logits[i])
                 }
-            self.batch_logs[i].append(step_log)
+                if self.first_call:
+                    step_log["yes_no_logits"] = {
+                        "original": self._get_yes_no_logits(scores[i]),
+                        "negative": self._get_yes_no_logits(logits_neg[i]),
+                        "modified": self._get_yes_no_logits(modified_logits[i]),
+                    }
+                self.batch_logs[i].append(step_log)
 
         self.first_call = False
+        self._step_idx += 1
         return modified_logits
 
 
@@ -244,7 +274,8 @@ def process_batch(batch, model, processor, perturbation_type, perturbation_setti
     for item in batch:
         if not os.path.exists(item["path"]):
             continue
-        audio, _ = librosa.load(item["path"], sr=sr, mono=True)
+        with PROFILER.section("audio_load", track_key=str(item["path"])):
+            audio, _ = librosa.load(item["path"], sr=sr, mono=True)
         audios.append(audio)
         items.append(item)
 
@@ -259,15 +290,16 @@ def process_batch(batch, model, processor, perturbation_type, perturbation_setti
     conversations_clean = [_make_conversation(item, audio) for item, audio in zip(items, audios)]
 
     # --- Clean (positive) branch ---
-    inputs_clean = _cast_inputs(
-        processor.apply_chat_template(
-            conversations_clean,
-            tokenize=True,
-            add_generation_prompt=True,
-            return_dict=True,
-        ).to(model.device),
-        model,
-    )
+    with PROFILER.section("clean_template_encode", batch_size=len(items)):
+        inputs_clean = _cast_inputs(
+            processor.apply_chat_template(
+                conversations_clean,
+                tokenize=True,
+                add_generation_prompt=True,
+                return_dict=True,
+            ).to(model.device),
+            model,
+        )
 
     # --- Negative branch & AAD initialization ---
     if perturbation_type == "ORIGINAL":
@@ -277,17 +309,19 @@ def process_batch(batch, model, processor, perturbation_type, perturbation_setti
     elif perturbation_type == "NO_AUDIO":
         # Text-only negative branch
         conversations_no_audio = [_make_conversation(item, audio=None) for item in items]
-        inputs_neg = _cast_inputs(
-            processor.apply_chat_template(
-                conversations_no_audio,
-                tokenize=True,
-                add_generation_prompt=True,
-                return_dict=True,
-            ).to(model.device),
-            model,
-        )
+        with PROFILER.section("negative_template_encode_no_audio", batch_size=len(items)):
+            inputs_neg = _cast_inputs(
+                processor.apply_chat_template(
+                    conversations_no_audio,
+                    tokenize=True,
+                    add_generation_prompt=True,
+                    return_dict=True,
+                ).to(model.device),
+                model,
+            )
 
-        neg_embeds = model.get_input_embeddings()(inputs_neg["input_ids"])
+        with PROFILER.section("negative_embed_lookup", batch_size=len(items)):
+            neg_embeds = model.get_input_embeddings()(inputs_neg["input_ids"])
         atts_neg = inputs_neg["attention_mask"]
 
         aad_proc = AudioLogitsProcessor(
@@ -298,27 +332,32 @@ def process_batch(batch, model, processor, perturbation_type, perturbation_setti
 
     else:
         # Perturbed audio branch
-        pert_cls = get_perturbation_class(perturbation_type)
-        pert_fn = get_perturbation(pert_cls, perturbation_setting, sr=sr)
-        perturbed = [pert_fn(a) for a in audios]
+        with PROFILER.section("perturbation_apply", batch_size=len(items)):
+            pert_cls = get_perturbation_class(perturbation_type)
+            pert_fn = get_perturbation(pert_cls, perturbation_setting, sr=sr)
+            perturbed = [pert_fn(a) for a in audios]
 
         conversations_neg = [_make_conversation(item, p) for item, p in zip(items, perturbed)]
-        inputs_neg = _cast_inputs(
-            processor.apply_chat_template(
-                conversations_neg,
-                tokenize=True,
-                add_generation_prompt=True,
-                return_dict=True,
-            ).to(model.device),
-            model,
-        )
+        with PROFILER.section("negative_template_encode_perturbed", batch_size=len(items)):
+            inputs_neg = _cast_inputs(
+                processor.apply_chat_template(
+                    conversations_neg,
+                    tokenize=True,
+                    add_generation_prompt=True,
+                    return_dict=True,
+                ).to(model.device),
+                model,
+            )
 
         with torch.no_grad():
-            out_neg = model(
-                **inputs_neg,
-                output_hidden_states=True,
-                return_dict=True
-            )
+            # One full forward pass per batch (not per decode step) — contrast this
+            # section's cost against aad_negative_forward's (once-per-step) cost.
+            with PROFILER.section("negative_forward_full", batch_size=len(items)):
+                out_neg = model(
+                    **inputs_neg,
+                    output_hidden_states=True,
+                    return_dict=True
+                )
             # hidden_states[0]: input embeddings (text + projected audio) before first attn layer
             neg_embeds = out_neg.hidden_states[0]
         atts_neg = inputs_neg["attention_mask"]
@@ -332,46 +371,51 @@ def process_batch(batch, model, processor, perturbation_type, perturbation_setti
         logits_processor_list = [aad_proc]
 
     # --- Generation ---
+    # Wraps all the internal per-step AudioLogitsProcessor calls above: generate_total's
+    # total_s minus the sum of the aad_* sections isolates HF's own clean-branch decode cost.
     with torch.no_grad():
-        output_ids = model.generate(
-            **inputs_clean,
-            max_new_tokens=MAX_NEW_TOKENS,
-            do_sample=False,
-            logits_processor=logits_processor_list,
-            pad_token_id=processor.tokenizer.pad_token_id
-        )
-
-    response_ids = output_ids[:, inputs_clean["input_ids"].size(1):]
-    responses = processor.batch_decode(response_ids, skip_special_tokens=True)
-
-    results: list[SampleResult] = []
-    for i, (item, resp) in enumerate(zip(items, responses)):
-        trace = aad_proc.batch_logs[i] if aad_proc else None
-        sd = aad_proc.softmax_distances[i] if aad_proc else None
-        extracted = extract_answer_with_config(resp, trace)
-        gt = item["text"].lower().strip()
-        is_correct = tokens_match_answer(extracted, gt)
-        results.append(
-            SampleResult(
-                format="freeform",
-                audio_file=item["path"],
-                question=item["Q"],
-                ground_truth=gt,
-                model_response=resp,
-                extracted_answer=extracted,
-                is_correct=is_correct,
-                aad_enabled=perturbation_type != "ORIGINAL",
-                aad_alpha=alpha,
-                logit_trace=trace,
-                softmax_distance=sd,
+        with PROFILER.section("generate_total", batch_size=len(items), max_new_tokens=MAX_NEW_TOKENS):
+            output_ids = model.generate(
+                **inputs_clean,
+                max_new_tokens=MAX_NEW_TOKENS,
+                do_sample=False,
+                logits_processor=logits_processor_list,
+                pad_token_id=processor.tokenizer.pad_token_id
             )
-        )
+
+    with PROFILER.section("decode_extract", batch_size=len(items)):
+        response_ids = output_ids[:, inputs_clean["input_ids"].size(1):]
+        responses = processor.batch_decode(response_ids, skip_special_tokens=True)
+
+        results: list[SampleResult] = []
+        for i, (item, resp) in enumerate(zip(items, responses)):
+            trace = aad_proc.batch_logs[i] if aad_proc else None
+            sd = aad_proc.softmax_distances[i] if aad_proc else None
+            extracted = extract_answer_with_config(resp, trace)
+            gt = item["text"].lower().strip()
+            is_correct = tokens_match_answer(extracted, gt)
+            results.append(
+                SampleResult(
+                    format="freeform",
+                    audio_file=item["path"],
+                    question=item["Q"],
+                    ground_truth=gt,
+                    model_response=resp,
+                    extracted_answer=extracted,
+                    is_correct=is_correct,
+                    aad_enabled=perturbation_type != "ORIGINAL",
+                    aad_alpha=alpha,
+                    logit_trace=trace,
+                    softmax_distance=sd,
+                )
+            )
 
     return results
 
 
-def main(perturbation_type="NO_AUDIO", perturbation_setting=None, alpha=None, results_dir=None, data_path=None, dataset=None, append_softmax_distance=False):
-    global MAX_NEW_TOKENS, BATCH_SIZE, PREFIX_PROMPT
+def main(perturbation_type="NO_AUDIO", perturbation_setting=None, alpha=None, results_dir=None, data_path=None, dataset=None, append_softmax_distance=False,
+         profile=False, profile_detailed=False, profile_max_batches=None):
+    global MAX_NEW_TOKENS, BATCH_SIZE, PREFIX_PROMPT, PROFILER
 
     if alpha is None:
         alpha = Config.alpha
@@ -416,14 +460,38 @@ def main(perturbation_type="NO_AUDIO", perturbation_setting=None, alpha=None, re
     if start_batch_idx > 0:
         print(f"  Resuming from batch: {start_batch_idx}")
 
-    processor = AutoProcessor.from_pretrained(MODEL_ID)
-    processor.tokenizer.padding_side = "left"
+    PROFILER = Profiler(enabled=profile, detailed=profile_detailed)
+    if profile:
+        print(f"  Profiling: enabled (detailed={profile_detailed}, max_batches={profile_max_batches})")
+        PROFILER.set_meta(
+            mode="run",
+            perturbation_type=perturbation_type,
+            perturbation_setting=perturbation_setting,
+            alpha=alpha,
+            batch_size=BATCH_SIZE,
+            max_new_tokens=MAX_NEW_TOKENS,
+            model_id=MODEL_ID,
+        )
 
-    model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
-        MODEL_ID,
-        device_map="auto",
-        torch_dtype=torch.bfloat16
-    )
+    with PROFILER.section("processor_load"):
+        processor = AutoProcessor.from_pretrained(MODEL_ID)
+        processor.tokenizer.padding_side = "left"
+
+    with PROFILER.section("model_load"):
+        model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
+            MODEL_ID,
+            device_map="auto",
+            torch_dtype=torch.bfloat16
+        )
+
+    if profile:
+        PROFILER.set_meta(
+            device_map=getattr(model, "hf_device_map", None),
+            gpu_names=[torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())],
+            torch_version=torch.__version__,
+            cuda_version=torch.version.cuda,
+        )
+        PROFILER.snapshot_memory("after_model_load")
 
     with dataset_path.open("r", encoding="utf-8") as f:
         data = json.load(f)
@@ -431,31 +499,60 @@ def main(perturbation_type="NO_AUDIO", perturbation_setting=None, alpha=None, re
     total_batches = (len(data) + BATCH_SIZE - 1) // BATCH_SIZE
     batch_indices = list(range(0, len(data), BATCH_SIZE))
 
+    if profile:
+        PROFILER.set_meta(num_batches_total=total_batches)
+
+    truncated = False
+    profiled_batches = 0
+
     for batch_idx, i in enumerate(tqdm(batch_indices, desc="Processing batches", initial=start_batch_idx, total=total_batches)):
         if batch_idx < start_batch_idx:
             continue
 
         batch = data[i : i + BATCH_SIZE]
 
-        batch_results = process_batch(
-            batch=batch,
-            model=model,
-            processor=processor,
-            perturbation_type=perturbation_type,
-            perturbation_setting=perturbation_setting,
-            alpha=alpha
-        )
+        with PROFILER.section("batch_total"):
+            batch_results = process_batch(
+                batch=batch,
+                model=model,
+                processor=processor,
+                perturbation_type=perturbation_type,
+                perturbation_setting=perturbation_setting,
+                alpha=alpha
+            )
 
         all_results.extend(batch_results)
+
+        if profile:
+            profiled_batches += 1
+            PROFILER.snapshot_memory(f"after_batch_{batch_idx}")
 
         if (batch_idx + 1) % CHECKPOINT_INTERVAL == 0:
             save_checkpoint(
                 all_results, batch_idx,
                 perturbation_type, alpha, perturbation_setting, results_directory
             )
+            if profile:
+                # Safety-net flush so a long profiled run that gets killed still leaves a report.
+                PROFILER.write_report(get_profile_report_path("run", perturbation_type, alpha, perturbation_setting))
 
         gc.collect()
         torch.cuda.empty_cache()
+
+        if profile and profile_max_batches is not None and profiled_batches >= profile_max_batches:
+            truncated = True
+            break
+
+    if profile:
+        PROFILER.set_meta(num_batches_profiled=profiled_batches, truncated=truncated)
+        PROFILER.write_report(get_profile_report_path("run", perturbation_type, alpha, perturbation_setting))
+
+    if truncated:
+        print(f"\n{'='*60}")
+        print(f"PROFILING RUN COMPLETE — partial results NOT saved (--profile-max-batches={profile_max_batches}).")
+        print(f"Profiled {profiled_batches} batch(es). See the time-usage report above for the breakdown.")
+        print(f"{'='*60}")
+        return
 
     correct = sum(1 for r in all_results if r.is_correct)
     total = len(all_results)
@@ -539,9 +636,10 @@ def main(perturbation_type="NO_AUDIO", perturbation_setting=None, alpha=None, re
     print(f"{'='*60}")
 
 
-def spot_check_run(perturbation_type, perturbation_setting, alpha, results_dir, data_path, dataset=None):
+def spot_check_run(perturbation_type, perturbation_setting, alpha, results_dir, data_path, dataset=None,
+                    profile=False, profile_detailed=False, profile_max_batches=None):
     """Re-run samples where step-0 modified top token is not yes/no, using 256 tokens."""
-    global MAX_NEW_TOKENS, PREFIX_PROMPT
+    global MAX_NEW_TOKENS, PREFIX_PROMPT, PROFILER
 
     cfg = make_config(variant=dataset, model="af3", alpha=alpha)
     results_directory = Path(results_dir) if results_dir else cfg.curr_results_dir
@@ -576,11 +674,38 @@ def spot_check_run(perturbation_type, perturbation_setting, alpha, results_dir, 
         dataset_items = json.load(f)
     audio_to_item = {item["path"]: item for item in dataset_items}
 
-    processor = AutoProcessor.from_pretrained(MODEL_ID)
-    processor.tokenizer.padding_side = "left"
-    model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
-        MODEL_ID, device_map="auto", torch_dtype=torch.bfloat16
-    )
+    # spot_check_run forces max_new_tokens=256 below — the worst case for the suspected
+    # O(N^2) AAD negative-branch cost, so this is the highest-value entry point to profile.
+    PROFILER = Profiler(enabled=profile, detailed=profile_detailed)
+    if profile:
+        print(f"  Profiling: enabled (detailed={profile_detailed}, max_batches={profile_max_batches})")
+        PROFILER.set_meta(
+            mode="spotcheck",
+            perturbation_type=perturbation_type,
+            perturbation_setting=perturbation_setting,
+            alpha=alpha,
+            model_id=MODEL_ID,
+            max_new_tokens=256,
+            batch_size=cfg.default_batch_size,
+            num_batches_total=(len(flagged_indices) + cfg.default_batch_size - 1) // cfg.default_batch_size,
+        )
+
+    with PROFILER.section("processor_load"):
+        processor = AutoProcessor.from_pretrained(MODEL_ID)
+        processor.tokenizer.padding_side = "left"
+    with PROFILER.section("model_load"):
+        model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
+            MODEL_ID, device_map="auto", torch_dtype=torch.bfloat16
+        )
+
+    if profile:
+        PROFILER.set_meta(
+            device_map=getattr(model, "hf_device_map", None),
+            gpu_names=[torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())],
+            torch_version=torch.__version__,
+            cuda_version=torch.version.cuda,
+        )
+        PROFILER.snapshot_memory("after_model_load")
 
     saved_max = MAX_NEW_TOKENS
     saved_prefix = PREFIX_PROMPT
@@ -588,6 +713,8 @@ def spot_check_run(perturbation_type, perturbation_setting, alpha, results_dir, 
     PREFIX_PROMPT = cfg.run_prompt
 
     change_records = []
+    truncated = False
+    profiled_batches = 0
     try:
         batch_sz = cfg.default_batch_size
 
@@ -602,14 +729,19 @@ def spot_check_run(perturbation_type, perturbation_setting, alpha, results_dir, 
             if not batch_pairs:
                 continue
 
-            batch_results = process_batch(
-                batch=[item for _, item in batch_pairs],
-                model=model,
-                processor=processor,
-                perturbation_type=perturbation_type,
-                perturbation_setting=perturbation_setting,
-                alpha=alpha,
-            )
+            with PROFILER.section("batch_total"):
+                batch_results = process_batch(
+                    batch=[item for _, item in batch_pairs],
+                    model=model,
+                    processor=processor,
+                    perturbation_type=perturbation_type,
+                    perturbation_setting=perturbation_setting,
+                    alpha=alpha,
+                )
+            if profile:
+                profiled_batches += 1
+                PROFILER.snapshot_memory(f"after_batch_{profiled_batches}")
+
             new_by_audio = {r.audio_file: r for r in batch_results}
 
             for idx, item in batch_pairs:
@@ -646,9 +778,22 @@ def spot_check_run(perturbation_type, perturbation_setting, alpha, results_dir, 
                     "old_model_response": old_response,
                     "new_model_response": new_r.model_response,
                 })
+
+            if profile and profile_max_batches is not None and profiled_batches >= profile_max_batches:
+                truncated = True
+                break
     finally:
         MAX_NEW_TOKENS = saved_max
         PREFIX_PROMPT = saved_prefix
+
+    if profile:
+        PROFILER.set_meta(num_batches_profiled=profiled_batches, truncated=truncated)
+        PROFILER.write_report(get_profile_report_path("spotcheck", perturbation_type, alpha, perturbation_setting))
+
+    if truncated:
+        print(f"  PROFILING RUN COMPLETE — partial spot-check results NOT saved "
+              f"({profiled_batches} batch(es) profiled, {len(change_records)} sample(s) touched in memory only).")
+        return
 
     n_changed = sum(1 for c in change_records if c["old_answer"] != c["new_answer"])
     print(f"  Spot-checked {len(change_records)} samples, {n_changed} answers changed.")
@@ -682,7 +827,8 @@ def spot_check_run(perturbation_type, perturbation_setting, alpha, results_dir, 
     print(f"  Report: {report_path}")
 
 
-def run_experiment(perturbation_type, perturbation_setting, alpha, results_dir, data_path, dataset=None, append_softmax_distance=False):
+def run_experiment(perturbation_type, perturbation_setting, alpha, results_dir, data_path, dataset=None, append_softmax_distance=False,
+                    profile=False, profile_detailed=False, profile_max_batches=None):
     main(
         perturbation_type=perturbation_type,
         perturbation_setting=perturbation_setting,
@@ -691,11 +837,14 @@ def run_experiment(perturbation_type, perturbation_setting, alpha, results_dir, 
         data_path=data_path,
         dataset=dataset,
         append_softmax_distance=append_softmax_distance,
+        profile=profile,
+        profile_detailed=profile_detailed,
+        profile_max_batches=profile_max_batches,
     )
 
 
 def run_audit(perturbation_type, perturbation_setting, alpha, results_dir, data_path, dataset=None,
-              audit_n=50, audit_seed=42):
+              audit_n=50, audit_seed=42, profile=False, profile_detailed=False, profile_max_batches=None):
     import gzip
     import random
 
@@ -741,30 +890,62 @@ def run_audit(perturbation_type, perturbation_setting, alpha, results_dir, data_
         batch_start = (idx // orig_batch_size) * orig_batch_size
         batches_to_audit.setdefault(batch_start, []).append(idx)
 
-    global MAX_NEW_TOKENS, BATCH_SIZE, PREFIX_PROMPT
+    global MAX_NEW_TOKENS, BATCH_SIZE, PREFIX_PROMPT, PROFILER
     MAX_NEW_TOKENS = cfg.default_max_new_tokens
     BATCH_SIZE = orig_batch_size
     PREFIX_PROMPT = cfg.run_prompt
 
-    processor = AutoProcessor.from_pretrained(MODEL_ID)
-    processor.tokenizer.padding_side = "left"
-    model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
-        MODEL_ID, device_map="auto", torch_dtype=torch.bfloat16
-    )
-
-    mismatches = []
-    skipped = 0
-
-    for batch_start, target_indices in sorted(batches_to_audit.items()):
-        batch = data[batch_start : batch_start + orig_batch_size]
-        batch_results = process_batch(
-            batch=batch,
-            model=model,
-            processor=processor,
+    PROFILER = Profiler(enabled=profile, detailed=profile_detailed)
+    if profile:
+        print(f"  Profiling: enabled (detailed={profile_detailed}, max_batches={profile_max_batches})")
+        PROFILER.set_meta(
+            mode="audit",
             perturbation_type=perturbation_type,
             perturbation_setting=perturbation_setting,
             alpha=alpha,
+            batch_size=BATCH_SIZE,
+            max_new_tokens=MAX_NEW_TOKENS,
+            model_id=MODEL_ID,
+            num_batches_total=len(batches_to_audit),
         )
+
+    with PROFILER.section("processor_load"):
+        processor = AutoProcessor.from_pretrained(MODEL_ID)
+        processor.tokenizer.padding_side = "left"
+    with PROFILER.section("model_load"):
+        model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
+            MODEL_ID, device_map="auto", torch_dtype=torch.bfloat16
+        )
+
+    if profile:
+        PROFILER.set_meta(
+            device_map=getattr(model, "hf_device_map", None),
+            gpu_names=[torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())],
+            torch_version=torch.__version__,
+            cuda_version=torch.version.cuda,
+        )
+        PROFILER.snapshot_memory("after_model_load")
+
+    mismatches = []
+    skipped = 0
+    profiled_batches = 0
+    truncated = False
+
+    for batch_start, target_indices in sorted(batches_to_audit.items()):
+        batch = data[batch_start : batch_start + orig_batch_size]
+        with PROFILER.section("batch_total"):
+            batch_results = process_batch(
+                batch=batch,
+                model=model,
+                processor=processor,
+                perturbation_type=perturbation_type,
+                perturbation_setting=perturbation_setting,
+                alpha=alpha,
+            )
+        if profile:
+            profiled_batches += 1
+            PROFILER.snapshot_memory(f"after_batch_{profiled_batches}")
+
         # batch_results may be shorter than batch if some audio files are missing.
         # Map back by position within the batch (process_batch skips missing files,
         # so we must align by audio_file rather than raw index).
@@ -816,9 +997,19 @@ def run_audit(perturbation_type, perturbation_setting, alpha, results_dir, data_
             if diffs:
                 mismatches.append({"audio_file": audio_file, "question": question[:60], "diffs": diffs})
 
+        if profile and profile_max_batches is not None and profiled_batches >= profile_max_batches:
+            truncated = True
+            break
+
+    if profile:
+        PROFILER.set_meta(num_batches_profiled=profiled_batches, truncated=truncated)
+        PROFILER.write_report(get_profile_report_path("audit", perturbation_type, alpha, perturbation_setting))
+
     audited = n - skipped
     print(f"\n{'='*60}")
     print(f"AUDIT: {perturbation_type}{'/' + perturbation_setting if perturbation_setting else ''} α={alpha}")
+    if truncated:
+        print(f"  NOTE: profiling run truncated after {profiled_batches} batch(es) (--profile-max-batches={profile_max_batches})")
     print(f"  Audited:    {audited}")
     print(f"  Skipped:    {skipped}")
     print(f"  Matches:    {audited - len(mismatches)}")
@@ -872,8 +1063,19 @@ if __name__ == "__main__":
                         help="Number of samples to audit per results file (default: 50)")
     parser.add_argument("--audit-seed", type=int, default=42,
                         help="Random seed for audit sample selection (default: 42)")
+    parser.add_argument("--profile", action="store_true",
+                        help="Enable time/memory profiling; writes a report under reports/time_usage/")
+    parser.add_argument("--profile-detailed", "--profile_detailed", action="store_true",
+                        help="Also record a full per-decode-step timing series (for growth-with-step-index "
+                             "analysis); implies --profile, adds real extra overhead, best combined with "
+                             "--profile-max-batches for a short diagnostic run")
+    parser.add_argument("--profile-max-batches", "--profile_max_batches", type=int, default=None,
+                        help="Stop after N batches when profiling (fast diagnostic run — "
+                             "nothing is written to results/checkpoints in this mode)")
 
     args = parser.parse_args()
+
+    profile_enabled = args.profile or args.profile_detailed
 
     datasets = args.dataset if args.dataset is not None else [None]
     audit_exit_code = 0
@@ -890,6 +1092,9 @@ if __name__ == "__main__":
                         results_dir=args.results_dir,
                         data_path=args.data_path,
                         dataset=args.dataset,
+                        profile=profile_enabled,
+                        profile_detailed=args.profile_detailed,
+                        profile_max_batches=args.profile_max_batches,
                     )
             else:
                 spot_check_run(
@@ -899,6 +1104,9 @@ if __name__ == "__main__":
                     results_dir=args.results_dir,
                     data_path=args.data_path,
                     dataset=args.dataset,
+                    profile=profile_enabled,
+                    profile_detailed=args.profile_detailed,
+                    profile_max_batches=args.profile_max_batches,
                 )
             continue
 
@@ -914,6 +1122,9 @@ if __name__ == "__main__":
                         dataset=args.dataset,
                         audit_n=args.audit_n,
                         audit_seed=args.audit_seed,
+                        profile=profile_enabled,
+                        profile_detailed=args.profile_detailed,
+                        profile_max_batches=args.profile_max_batches,
                     )
                     audit_exit_code = max(audit_exit_code, code)
             else:
@@ -926,6 +1137,9 @@ if __name__ == "__main__":
                     dataset=args.dataset,
                     audit_n=args.audit_n,
                     audit_seed=args.audit_seed,
+                    profile=profile_enabled,
+                    profile_detailed=args.profile_detailed,
+                    profile_max_batches=args.profile_max_batches,
                 )
                 audit_exit_code = max(audit_exit_code, code)
             continue  # skip non-audit block for this dataset
@@ -941,6 +1155,9 @@ if __name__ == "__main__":
                     data_path=args.data_path,
                     dataset=args.dataset,
                     append_softmax_distance=asd,
+                    profile=profile_enabled,
+                    profile_detailed=args.profile_detailed,
+                    profile_max_batches=args.profile_max_batches,
                 )
         else:
             run_experiment(
@@ -951,6 +1168,9 @@ if __name__ == "__main__":
                 data_path=args.data_path,
                 dataset=args.dataset,
                 append_softmax_distance=asd,
+                profile=profile_enabled,
+                profile_detailed=args.profile_detailed,
+                profile_max_batches=args.profile_max_batches,
             )
 
     if args.audit:
