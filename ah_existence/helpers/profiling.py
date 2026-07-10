@@ -9,15 +9,18 @@ returns before touching `time`/`torch.cuda` at all when `enabled=False` — so
 it cannot affect timing or behavior unless a run explicitly passes
 `--profile`. When enabled it only wraps existing code blocks with
 `with PROFILER.section("name", **tags):`; it never reorders or changes what
-those blocks compute.
+those blocks compute. There is exactly one profiling mode: `--profile` always
+records the full detailed report (per-call sample series included).
 
-Produces three things per profiled run, all under reports/time_usage/:
+Produces three things per profiled run, all under <repo root>/profiler_reports/:
   * a JSON report with a "summary" rollup and a "detailed" section (full
     per-section stats, per-step sample series for the hot AAD loop so cost
     growth across decode steps is visible directly, slowest-N outliers, and
     the full memory-snapshot timeline)
-  * a plain-text ".log" sibling with the same information laid out as
-    readable tables — the "neat log" you can skim without touching JSON
+  * a plain-text ".log" sibling laid out as human-readable tables, with plain-
+    English labels for every section, a "biggest time sink" callout, and a
+    growth-signal flag for sections whose cost varies a lot call-to-call —
+    the "neat log" you can skim without touching JSON
   * the same text printed to stdout at the end of the run
 """
 
@@ -33,6 +36,81 @@ from pathlib import Path
 from typing import Optional
 
 import torch
+
+# name -> (short human label used in the table, longer description used in the legend)
+SECTION_INFO: dict[str, tuple[str, str]] = {
+    "processor_load": (
+        "Load processor",
+        "AutoProcessor.from_pretrained(...) — tokenizer/feature-extractor setup, once per run.",
+    ),
+    "model_load": (
+        "Load model",
+        "AudioFlamingo3ForConditionalGeneration.from_pretrained(..., device_map='auto') — once per run.",
+    ),
+    "batch_total": (
+        "Process one batch (end-to-end)",
+        "The full process_batch() call: audio load + encode + generate + decode for one batch.",
+    ),
+    "audio_load": (
+        "Load+resample one audio file",
+        "librosa.load() for a single file, timed individually (not just the whole batch loop).",
+    ),
+    "clean_template_encode": (
+        "Encode clean-audio prompt",
+        "processor.apply_chat_template() for the real (clean) audio + question.",
+    ),
+    "negative_template_encode_no_audio": (
+        "Encode no-audio negative prompt",
+        "processor.apply_chat_template() for the text-only negative branch (AAD, NO_AUDIO mode).",
+    ),
+    "negative_embed_lookup": (
+        "Embed no-audio negative prompt",
+        "model.get_input_embeddings() on the no-audio negative branch's token ids.",
+    ),
+    "perturbation_apply": (
+        "Apply audio perturbation",
+        "Waveform perturbation (noise/mask/reverse/etc.) applied to build the negative branch's audio.",
+    ),
+    "negative_template_encode_perturbed": (
+        "Encode perturbed-audio prompt",
+        "processor.apply_chat_template() for the perturbed-audio negative branch.",
+    ),
+    "negative_forward_full": (
+        "Negative branch: full forward (per batch)",
+        "One full model forward pass over the perturbed-audio negative prompt — once per BATCH, not per step.",
+    ),
+    "generate_total": (
+        "generate() — full decode loop",
+        "model.generate() for the clean branch. Wraps every decode step, including all AAD sections below — "
+        "generate_total minus the sum of the aad_* rows below is roughly HF's own clean-branch decode cost.",
+    ),
+    "aad_step_embed_concat": (
+        "AAD: grow negative sequence",
+        "AudioLogitsProcessor: embed the newest token and append it to the negative sequence — once per decode step.",
+    ),
+    "aad_negative_forward": (
+        "AAD: negative-branch forward (per step)",
+        "AudioLogitsProcessor: full model forward pass on the negative branch — once per decode step, "
+        "WITH NO KV CACHE (reprocesses the whole growing sequence every time). Prime suspect for slow runs.",
+    ),
+    "aad_step_diagnostics": (
+        "AAD: per-step logging/metrics",
+        "AudioLogitsProcessor: builds the logit_trace/step0_metrics (many .item()/tokenizer.decode() calls, "
+        "each one a GPU sync) — once per decode step.",
+    ),
+    "decode_extract": (
+        "Decode + extract answer",
+        "processor.batch_decode() plus building the SampleResult objects for a batch.",
+    ),
+}
+
+
+def _label(name: str) -> str:
+    return SECTION_INFO.get(name, (name, ""))[0]
+
+
+def _description(name: str) -> str:
+    return SECTION_INFO.get(name, (name, "(no description on file for this section)"))[1]
 
 
 def _now_tag() -> str:
@@ -51,13 +129,14 @@ def _human_duration(seconds: float) -> str:
 
 
 class Profiler:
-    """Section-based wall-clock + memory profiler. A true no-op unless enabled=True."""
+    """Section-based wall-clock + memory profiler. A true no-op unless enabled=True.
 
-    def __init__(self, enabled: bool = False, detailed: bool = False):
+    There is a single profiling mode: whenever enabled, the full detailed report
+    (including per-call sample series) is recorded — no separate "detailed" flag.
+    """
+
+    def __init__(self, enabled: bool = False):
         self.enabled = enabled
-        # per-step sample recording only ever makes sense (and only ever costs anything)
-        # when the profiler itself is enabled.
-        self.detailed = bool(detailed) and enabled
         self._device_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
 
         self._stats: dict[str, dict] = defaultdict(
@@ -96,8 +175,7 @@ class Profiler:
             s["total_s"] += dt
             s["min_s"] = min(s["min_s"], dt)
             s["max_s"] = max(s["max_s"], dt)
-            if self.detailed:
-                self._samples[name].append({"duration_s": round(dt, 6), **tags})
+            self._samples[name].append({"duration_s": round(dt, 6), **tags})
             if track_key is not None:
                 self.track_slowest(name, key=track_key, duration_s=dt, n=track_n)
 
@@ -149,6 +227,7 @@ class Profiler:
             pct = (s["total_s"] / total_wall_s * 100) if total_wall_s else 0.0
             top_sections.append({
                 "name": name,
+                "label": _label(name),
                 "calls": s["count"],
                 "total_s": round(s["total_s"], 3),
                 "avg_s": round(s["total_s"] / s["count"], 6) if s["count"] else 0.0,
@@ -186,6 +265,8 @@ class Profiler:
         sections = {}
         for name, s in self._stats.items():
             sections[name] = {
+                "label": _label(name),
+                "description": _description(name),
                 "count": s["count"],
                 "total_s": round(s["total_s"], 4),
                 "avg_s": round(s["total_s"] / s["count"], 6) if s["count"] else 0.0,
@@ -198,9 +279,8 @@ class Profiler:
         }
         return {
             "sections": sections,
-            # Per-call sample series (present only with --profile-detailed) — this is what
-            # lets you plot duration vs. decode-step-index and see linear vs. quadratic growth
-            # directly instead of inferring it from an average.
+            # Per-call sample series — this is what lets you plot duration vs. decode-step-index
+            # and see linear vs. quadratic growth directly instead of inferring it from an average.
             "per_step_samples": dict(self._samples),
             "slowest_calls": slowest,
             "memory_snapshots": self.memory_snapshots,
@@ -216,64 +296,111 @@ class Profiler:
     def _build_report_text(self) -> str:
         summary = self.summary_dict()
         lines: list[str] = []
-        lines.append("=" * 78)
+        W = 90
+        lines.append("=" * W)
         lines.append("TIME USAGE PROFILE — Audio Flamingo 3 (run_af3.py)")
-        lines.append("=" * 78)
+        lines.append("=" * W)
 
-        if self.meta:
-            for k, v in self.meta.items():
-                if isinstance(v, (list, dict)):
-                    continue
-                lines.append(f"  {k}: {v}")
+        # --- run info -----------------------------------------------------------
+        run_bits = []
+        for k in ("mode", "perturbation_type", "perturbation_setting", "alpha", "batch_size", "max_new_tokens"):
+            if self.meta.get(k) is not None:
+                run_bits.append(f"{k}={self.meta[k]}")
+        if run_bits:
+            lines.append("Run:      " + "  ".join(run_bits))
+        if self.meta.get("model_id"):
+            lines.append(f"Model:    {self.meta['model_id']}")
         if self.meta.get("gpu_names"):
-            lines.append(f"  gpu_names: {', '.join(self.meta['gpu_names'])}")
+            gpu_names = self.meta["gpu_names"]
+            lines.append(f"GPUs:     {len(gpu_names)}x {gpu_names[0]}" if gpu_names else "GPUs:     (none detected)")
         if self.meta.get("device_map"):
-            devices = sorted(set(self.meta["device_map"].values())) if isinstance(self.meta["device_map"], dict) else None
+            dm = self.meta["device_map"]
+            devices = sorted(set(dm.values())) if isinstance(dm, dict) else None
             if devices:
-                lines.append(f"  device_map spans devices: {devices}")
-
+                lines.append(f"Model is spread across devices: {devices}"
+                              + ("  <- device_map='auto' is fragmenting it across multiple GPUs" if len(devices) > 1 else ""))
+        if "num_batches_profiled" in self.meta:
+            total_b = self.meta.get("num_batches_total", "?")
+            trunc = "  (diagnostic run — nothing saved to results/checkpoints)" if self.meta.get("truncated") else ""
+            lines.append(f"Batches:  profiled {self.meta['num_batches_profiled']} of {total_b}{trunc}")
         lines.append("")
+
+        # --- biggest time sink callout, in plain English -------------------------
+        top = summary["top_sections_by_total_time"]
+        if top:
+            biggest = top[0]
+            lines.append("BIGGEST TIME SINK")
+            lines.append(
+                f"  {biggest['label']} — {biggest['pct_of_run']:.1f}% of profiled time "
+                f"({biggest['total_s']:.2f}s across {biggest['calls']} call(s), "
+                f"avg {biggest['avg_s'] * 1000:.1f}ms/call)"
+            )
+            lines.append(f"  {_description(biggest['name'])}")
+            lines.append("")
+
+        # --- wall time summary ----------------------------------------------------
         lines.append(f"Total profiled wall time : {summary['total_profiled_wall_s']:.2f}s")
-        lines.append(f"Model load time          : {summary['model_load_s']:.2f}s")
+        lines.append(f"Model load time          : {summary['model_load_s']:.2f}s  (one-time cost, not per-batch)")
         if "estimated_full_run_human" in summary:
             lines.append(
-                f"Estimated full-run time  : {summary['estimated_full_run_human']} "
-                f"({summary['estimated_full_run_s']:.0f}s) "
-                f"[extrapolated from {self.meta.get('num_batches_profiled', '?')} of "
-                f"{self.meta.get('num_batches_total', '?')} batches]"
+                f"Estimated FULL run time  : {summary['estimated_full_run_human']} "
+                f"({summary['estimated_full_run_s']:.0f}s) — extrapolated from the batches profiled here"
             )
         lines.append("")
 
-        # Full per-function/section table, every section (not just the top 10 in "summary").
+        # --- main ranked table, human labels, ms avg ------------------------------
         all_sections = sorted(self._stats.items(), key=lambda kv: -kv[1]["total_s"])
         total_wall = summary["total_profiled_wall_s"] or 1e-9
-        header = f"{'Section (what/where)':<34}{'Calls':>8}{'Total(s)':>12}{'Avg(s)':>12}{'Min(s)':>10}{'Max(s)':>10}{'% run':>8}"
+        lines.append("WHERE THE TIME GOES (most expensive first)")
+        header = f"{'What':<40}{'Calls':>7}{'Total(s)':>10}{'Avg(ms)':>10}{'% of run':>10}"
         lines.append(header)
         lines.append("-" * len(header))
+        growth_flags = []
         for name, s in all_sections:
-            avg = s["total_s"] / s["count"] if s["count"] else 0.0
+            avg_ms = (s["total_s"] / s["count"] * 1000) if s["count"] else 0.0
             pct = s["total_s"] / total_wall * 100
-            lines.append(
-                f"{name:<34}{s['count']:>8}{s['total_s']:>12.3f}{avg:>12.6f}"
-                f"{s['min_s']:>10.4f}{s['max_s']:>10.4f}{pct:>7.1f}%"
-            )
+            lines.append(f"{_label(name):<40}{s['count']:>7}{s['total_s']:>10.3f}{avg_ms:>10.2f}{pct:>9.1f}%")
+            # High max/min spread with enough calls is the signature of a per-step cost that
+            # grows over the run (e.g. an uncached forward pass over a growing sequence).
+            if s["count"] >= 4 and s["min_s"] > 0 and s["max_s"] / s["min_s"] >= 3:
+                growth_flags.append((name, s))
+        lines.append("")
 
-        if summary["peak_gpu_memory_gb"]:
+        # --- legend: what each row actually measures -------------------------------
+        lines.append("WHAT EACH ROW MEASURES")
+        for name, _s in all_sections:
+            lines.append(f"  {_label(name)}: {_description(name)}")
+        lines.append("")
+
+        # --- growth signal: cost that isn't flat across calls ------------------------
+        if growth_flags:
+            lines.append("GROWING COST WARNING (fastest call vs. slowest call differs by 3x+)")
+            lines.append("  This is the signature of per-call cost that scales with something that grows")
+            lines.append("  over the run (e.g. sequence length) rather than being constant per call:")
+            for name, s in growth_flags:
+                lines.append(
+                    f"  {_label(name)}: {s['min_s'] * 1000:.2f}ms (fastest) -> {s['max_s'] * 1000:.2f}ms (slowest)"
+                )
+            lines.append("  See detailed.per_step_samples in the JSON report for the full per-call series.")
             lines.append("")
-            lines.append("Peak GPU memory (max_allocated), confirms/refutes device_map fragmentation:")
+
+        # --- memory -----------------------------------------------------------------
+        if summary["peak_gpu_memory_gb"]:
+            lines.append("Peak GPU memory (max_allocated) — confirms/refutes device_map fragmentation:")
             for dev, gb in summary["peak_gpu_memory_gb"].items():
                 lines.append(f"  {dev}: {gb:.2f} GB")
+            lines.append("")
 
+        # --- slowest individual calls -------------------------------------------------
         for name, heap in self._slowest.items():
             if not heap:
                 continue
-            lines.append("")
-            lines.append(f"Slowest '{name}' calls:")
+            lines.append(f"Slowest '{_label(name)}' calls:")
             for d, k in sorted(heap, reverse=True):
                 lines.append(f"  {d:.3f}s  {k}")
+            lines.append("")
 
-        lines.append("")
-        lines.append("=" * 78)
+        lines.append("=" * W)
         return "\n".join(lines)
 
     def print_summary(self):
@@ -308,10 +435,12 @@ def get_profile_report_path(
     perturbation_setting: Optional[str] = None,
     reports_dir: Optional["Path | str"] = None,
 ) -> Path:
-    """Mirrors helpers.run_helpers.get_output_filename's naming shape, rooted at reports/time_usage/."""
+    """Mirrors helpers.run_helpers.get_output_filename's naming shape, rooted at
+    <repo root>/profiler_reports/ (Config.project_root is ah_existence/, so the repo
+    root is one level up)."""
     from helpers.config import Config
 
-    directory = Path(reports_dir) if reports_dir else (Config.project_root / "reports" / "time_usage")
+    directory = Path(reports_dir) if reports_dir else (Config.project_root.parent / "profiler_reports")
     name_part = perturbation_type.lower()
     if perturbation_setting:
         name_part = f"{name_part}_{perturbation_setting.lower()}"

@@ -67,10 +67,10 @@ directory summaries without retraining the model.
 
 Time-usage profiling
 -----------------------
-Pass --profile (optionally --profile-detailed and --profile-max-batches) to
-measure exactly where time and GPU/CPU memory go, without changing any model
-behavior or output. See helpers/profiling.py. Disabled by default and a true
-no-op on that path.
+Pass --profile (optionally --profile-max-batches) to measure exactly where
+time and GPU/CPU memory go, without changing any model behavior or output.
+Writes a JSON + human-readable .log report under <repo root>/profiler_reports/.
+See helpers/profiling.py. Disabled by default and a true no-op on that path.
 """
 
 import json
@@ -414,7 +414,7 @@ def process_batch(batch, model, processor, perturbation_type, perturbation_setti
 
 
 def main(perturbation_type="NO_AUDIO", perturbation_setting=None, alpha=None, results_dir=None, data_path=None, dataset=None, append_softmax_distance=False,
-         profile=False, profile_detailed=False, profile_max_batches=None):
+         profile=False, profile_max_batches=None):
     global MAX_NEW_TOKENS, BATCH_SIZE, PREFIX_PROMPT, PROFILER
 
     if alpha is None:
@@ -460,9 +460,9 @@ def main(perturbation_type="NO_AUDIO", perturbation_setting=None, alpha=None, re
     if start_batch_idx > 0:
         print(f"  Resuming from batch: {start_batch_idx}")
 
-    PROFILER = Profiler(enabled=profile, detailed=profile_detailed)
+    PROFILER = Profiler(enabled=profile)
     if profile:
-        print(f"  Profiling: enabled (detailed={profile_detailed}, max_batches={profile_max_batches})")
+        print(f"  Profiling: enabled (max_batches={profile_max_batches})")
         PROFILER.set_meta(
             mode="run",
             perturbation_type=perturbation_type,
@@ -637,7 +637,7 @@ def main(perturbation_type="NO_AUDIO", perturbation_setting=None, alpha=None, re
 
 
 def spot_check_run(perturbation_type, perturbation_setting, alpha, results_dir, data_path, dataset=None,
-                    profile=False, profile_detailed=False, profile_max_batches=None):
+                    profile=False, profile_max_batches=None):
     """Re-run samples where step-0 modified top token is not yes/no, using 256 tokens."""
     global MAX_NEW_TOKENS, PREFIX_PROMPT, PROFILER
 
@@ -676,9 +676,9 @@ def spot_check_run(perturbation_type, perturbation_setting, alpha, results_dir, 
 
     # spot_check_run forces max_new_tokens=256 below — the worst case for the suspected
     # O(N^2) AAD negative-branch cost, so this is the highest-value entry point to profile.
-    PROFILER = Profiler(enabled=profile, detailed=profile_detailed)
+    PROFILER = Profiler(enabled=profile)
     if profile:
-        print(f"  Profiling: enabled (detailed={profile_detailed}, max_batches={profile_max_batches})")
+        print(f"  Profiling: enabled (max_batches={profile_max_batches})")
         PROFILER.set_meta(
             mode="spotcheck",
             perturbation_type=perturbation_type,
@@ -828,7 +828,7 @@ def spot_check_run(perturbation_type, perturbation_setting, alpha, results_dir, 
 
 
 def run_experiment(perturbation_type, perturbation_setting, alpha, results_dir, data_path, dataset=None, append_softmax_distance=False,
-                    profile=False, profile_detailed=False, profile_max_batches=None):
+                    profile=False, profile_max_batches=None):
     main(
         perturbation_type=perturbation_type,
         perturbation_setting=perturbation_setting,
@@ -838,13 +838,12 @@ def run_experiment(perturbation_type, perturbation_setting, alpha, results_dir, 
         dataset=dataset,
         append_softmax_distance=append_softmax_distance,
         profile=profile,
-        profile_detailed=profile_detailed,
         profile_max_batches=profile_max_batches,
     )
 
 
 def run_audit(perturbation_type, perturbation_setting, alpha, results_dir, data_path, dataset=None,
-              audit_n=50, audit_seed=42, profile=False, profile_detailed=False, profile_max_batches=None):
+              audit_n=50, audit_seed=42, profile=False, profile_max_batches=None):
     import gzip
     import random
 
@@ -895,9 +894,9 @@ def run_audit(perturbation_type, perturbation_setting, alpha, results_dir, data_
     BATCH_SIZE = orig_batch_size
     PREFIX_PROMPT = cfg.run_prompt
 
-    PROFILER = Profiler(enabled=profile, detailed=profile_detailed)
+    PROFILER = Profiler(enabled=profile)
     if profile:
-        print(f"  Profiling: enabled (detailed={profile_detailed}, max_batches={profile_max_batches})")
+        print(f"  Profiling: enabled (max_batches={profile_max_batches})")
         PROFILER.set_meta(
             mode="audit",
             perturbation_type=perturbation_type,
@@ -1064,18 +1063,13 @@ if __name__ == "__main__":
     parser.add_argument("--audit-seed", type=int, default=42,
                         help="Random seed for audit sample selection (default: 42)")
     parser.add_argument("--profile", action="store_true",
-                        help="Enable time/memory profiling; writes a report under reports/time_usage/")
-    parser.add_argument("--profile-detailed", "--profile_detailed", action="store_true",
-                        help="Also record a full per-decode-step timing series (for growth-with-step-index "
-                             "analysis); implies --profile, adds real extra overhead, best combined with "
-                             "--profile-max-batches for a short diagnostic run")
+                        help="Enable time/memory profiling (records the full detailed report); "
+                             "writes a report under <repo root>/profiler_reports/")
     parser.add_argument("--profile-max-batches", "--profile_max_batches", type=int, default=None,
                         help="Stop after N batches when profiling (fast diagnostic run — "
                              "nothing is written to results/checkpoints in this mode)")
 
     args = parser.parse_args()
-
-    profile_enabled = args.profile or args.profile_detailed
 
     datasets = args.dataset if args.dataset is not None else [None]
     audit_exit_code = 0
@@ -1092,8 +1086,7 @@ if __name__ == "__main__":
                         results_dir=args.results_dir,
                         data_path=args.data_path,
                         dataset=args.dataset,
-                        profile=profile_enabled,
-                        profile_detailed=args.profile_detailed,
+                        profile=args.profile,
                         profile_max_batches=args.profile_max_batches,
                     )
             else:
@@ -1104,8 +1097,7 @@ if __name__ == "__main__":
                     results_dir=args.results_dir,
                     data_path=args.data_path,
                     dataset=args.dataset,
-                    profile=profile_enabled,
-                    profile_detailed=args.profile_detailed,
+                    profile=args.profile,
                     profile_max_batches=args.profile_max_batches,
                 )
             continue
@@ -1122,8 +1114,7 @@ if __name__ == "__main__":
                         dataset=args.dataset,
                         audit_n=args.audit_n,
                         audit_seed=args.audit_seed,
-                        profile=profile_enabled,
-                        profile_detailed=args.profile_detailed,
+                        profile=args.profile,
                         profile_max_batches=args.profile_max_batches,
                     )
                     audit_exit_code = max(audit_exit_code, code)
@@ -1137,8 +1128,7 @@ if __name__ == "__main__":
                     dataset=args.dataset,
                     audit_n=args.audit_n,
                     audit_seed=args.audit_seed,
-                    profile=profile_enabled,
-                    profile_detailed=args.profile_detailed,
+                    profile=args.profile,
                     profile_max_batches=args.profile_max_batches,
                 )
                 audit_exit_code = max(audit_exit_code, code)
@@ -1155,8 +1145,7 @@ if __name__ == "__main__":
                     data_path=args.data_path,
                     dataset=args.dataset,
                     append_softmax_distance=asd,
-                    profile=profile_enabled,
-                    profile_detailed=args.profile_detailed,
+                    profile=args.profile,
                     profile_max_batches=args.profile_max_batches,
                 )
         else:
@@ -1168,8 +1157,7 @@ if __name__ == "__main__":
                 data_path=args.data_path,
                 dataset=args.dataset,
                 append_softmax_distance=asd,
-                profile=profile_enabled,
-                profile_detailed=args.profile_detailed,
+                profile=args.profile,
                 profile_max_batches=args.profile_max_batches,
             )
 
