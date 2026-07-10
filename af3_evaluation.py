@@ -163,13 +163,13 @@ def run_evaluation():
 
 
 
-    # baseline_model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
-    #         "nvidia/audio-flamingo-3-hf",
-    #         device_map="auto",
-    #         torch_dtype=torch.bfloat16
-    #     )
+    baseline_model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
+            "nvidia/audio-flamingo-3-hf",
+            device_map="auto",
+            torch_dtype=torch.bfloat16
+        )
     
-    # baseline_processor = AutoProcessor.from_pretrained("nvidia/audio-flamingo-3-hf")
+    baseline_processor = AutoProcessor.from_pretrained("nvidia/audio-flamingo-3-hf")
 
     print("Loading model")
 
@@ -192,13 +192,14 @@ def run_evaluation():
     # print(mdpo_processor.feature_extractor.__dict__)
     
 
-    #baseline_accuracy = evaluate(baseline_model, baseline_processor, data)
+    
     print("Model loaded")
     print("Starting evaluation")    
 
     mdpo_accuracy = evaluate(training_model, mdpo_processor, data)
+    baseline_accuracy = evaluate(baseline_model, baseline_processor, data)
 
-    #print("Baseline Accuracy:", baseline_accuracy)
+    print("Baseline Accuracy:", baseline_accuracy)
     print("mDPO Accuracy:", mdpo_accuracy)
     
 
