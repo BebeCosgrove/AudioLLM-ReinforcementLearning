@@ -534,7 +534,7 @@ def main(perturbation_type="NO_AUDIO", perturbation_setting=None, alpha=None, re
             )
             if profile:
                 # Safety-net flush so a long profiled run that gets killed still leaves a report.
-                PROFILER.write_report(get_profile_report_path("run", perturbation_type, alpha, perturbation_setting))
+                PROFILER.write_report(get_profile_report_path("run", perturbation_type=perturbation_type, alpha=alpha, perturbation_setting=perturbation_setting))
 
         gc.collect()
         torch.cuda.empty_cache()
@@ -545,7 +545,7 @@ def main(perturbation_type="NO_AUDIO", perturbation_setting=None, alpha=None, re
 
     if profile:
         PROFILER.set_meta(num_batches_profiled=profiled_batches, truncated=truncated)
-        PROFILER.write_report(get_profile_report_path("run", perturbation_type, alpha, perturbation_setting))
+        PROFILER.write_report(get_profile_report_path("run", perturbation_type=perturbation_type, alpha=alpha, perturbation_setting=perturbation_setting))
 
     if truncated:
         print(f"\n{'='*60}")
@@ -788,7 +788,7 @@ def spot_check_run(perturbation_type, perturbation_setting, alpha, results_dir, 
 
     if profile:
         PROFILER.set_meta(num_batches_profiled=profiled_batches, truncated=truncated)
-        PROFILER.write_report(get_profile_report_path("spotcheck", perturbation_type, alpha, perturbation_setting))
+        PROFILER.write_report(get_profile_report_path("spotcheck", perturbation_type=perturbation_type, alpha=alpha, perturbation_setting=perturbation_setting))
 
     if truncated:
         print(f"  PROFILING RUN COMPLETE — partial spot-check results NOT saved "
@@ -1002,7 +1002,7 @@ def run_audit(perturbation_type, perturbation_setting, alpha, results_dir, data_
 
     if profile:
         PROFILER.set_meta(num_batches_profiled=profiled_batches, truncated=truncated)
-        PROFILER.write_report(get_profile_report_path("audit", perturbation_type, alpha, perturbation_setting))
+        PROFILER.write_report(get_profile_report_path("audit", perturbation_type=perturbation_type, alpha=alpha, perturbation_setting=perturbation_setting))
 
     audited = n - skipped
     print(f"\n{'='*60}")

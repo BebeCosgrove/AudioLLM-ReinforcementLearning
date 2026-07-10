@@ -430,19 +430,26 @@ class Profiler:
 
 def get_profile_report_path(
     mode: str,
-    perturbation_type: str,
-    alpha: float,
+    *,
+    tag: Optional[str] = None,
+    perturbation_type: Optional[str] = None,
+    alpha: Optional[float] = None,
     perturbation_setting: Optional[str] = None,
     reports_dir: Optional["Path | str"] = None,
 ) -> Path:
-    """Mirrors helpers.run_helpers.get_output_filename's naming shape, rooted at
-    <repo root>/profiler_reports/ (Config.project_root is ah_existence/, so the repo
-    root is one level up)."""
-    from helpers.config import Config
+    """Report path under <repo root>/profiler_reports/ — repo root is resolved relative to
+    this file (ah_existence/helpers/profiling.py, two levels up), so this works from any
+    script in the repo, not just ones that import helpers.config.
 
-    directory = Path(reports_dir) if reports_dir else (Config.project_root.parent / "profiler_reports")
-    name_part = perturbation_type.lower()
-    if perturbation_setting:
-        name_part = f"{name_part}_{perturbation_setting.lower()}"
-    base_name = f"profile_{mode}_{name_part}_alpha_{alpha}_{_now_tag()}"
+    Either pass `tag` directly (any short descriptive string, e.g. "mdpo_beta_0.1"), or
+    pass `perturbation_type`/`alpha`/`perturbation_setting` to build the tag the way
+    run_af3.py's eval/spot-check/audit runs do.
+    """
+    directory = Path(reports_dir) if reports_dir else (Path(__file__).resolve().parent.parent.parent / "profiler_reports")
+    if tag is None:
+        name_part = (perturbation_type or mode).lower()
+        if perturbation_setting:
+            name_part = f"{name_part}_{perturbation_setting.lower()}"
+        tag = f"{name_part}_alpha_{alpha}" if alpha is not None else name_part
+    base_name = f"profile_{mode}_{tag}_{_now_tag()}"
     return directory / f"{base_name}.json"
