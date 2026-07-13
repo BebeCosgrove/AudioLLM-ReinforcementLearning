@@ -16,12 +16,18 @@ import peft
 from peft import LoraConfig, get_peft_model
 import wandb
 import re
+from accelerate import Accelerator
+import torch.distributed as dist
 
 from helpers.profiling import Profiler, get_profile_report_path
 
 # Shared profiler instance — disabled (true no-op) unless run() is called with profile=True.
 # Reassigned in run(); referenced directly as a module global from AudioMDPOCollator.__call__
 # and evaluate() so no signature changes are needed there (same pattern as run_af3.py).
+#
+# NOTE: under `accelerate launch` every GPU process gets its own separate Python
+# interpreter, so its own separate PROFILER instance — each process independently times
+# its own work. Only the main process (accelerator.is_main_process) writes the report.
 PROFILER = Profiler(enabled=False)
 
 
@@ -374,9 +380,11 @@ def mdpo_loss(
     anchor_logits = policy_chosen_logps - reference_chosen_logps  # anchored preference
 
     # mDPO
-    losses = -torch.nn.functional.logsigmoid(beta * logits)\
-        -torch.nn.functional.logsigmoid(beta * anchor_logits)
+    losses = losses = (
+    -torch.nn.functional.logsigmoid(beta * logits)
+    -torch.nn.functional.logsigmoid(beta * anchor_logits)
     -torch.nn.functional.logsigmoid(beta * audio_conditional_logits)
+)
 
 
 
@@ -542,8 +550,12 @@ def extract_choice_letter(text):
 
 def run(profile=False, profile_max_batches=None):
     global PROFILER
-    device = "cuda"
+    accelerator = Accelerator(
+        mixed_precision="no",  # preserve float32, since bf16 caused NaNs for you
+    )
+    # device = "cuda"
     beta = 0.1
+    NUM_EPOCHS = 1
 
     PROFILER = Profiler(enabled=profile)
     if profile:
@@ -551,22 +563,24 @@ def run(profile=False, profile_max_batches=None):
         PROFILER.set_meta(
             mode="dcase_train",
             beta=beta,
-            batch_size=6,
+            batch_size_per_gpu=1,
             model_id="nvidia/audio-flamingo-3-hf",
         )
 
     # Profiling runs are diagnostic — don't create wandb experiment entries for them.
-    if not profile:
+    if accelerator.is_main_process and not profile:
         wandb.init(
             project="af3-mdpo",
             config={
                 "beta": beta,
                 "lr": 1e-6,
-                "batch_size": 6,
-                "epochs": 2,
+                "batch_size_per_gpu": 1,
+                "num_gpus": accelerator.num_processes,
+                "effective_batch_size": accelerator.num_processes,
+                "epochs": NUM_EPOCHS,
                 "lora_r": 8,
                 "lora_alpha": 16,
-            }
+            },
         )
 
     lora_config = LoraConfig(
@@ -587,8 +601,7 @@ def run(profile=False, profile_max_batches=None):
     with PROFILER.section("model_load"):
         policy_model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
         model_id,
-        device_map="auto",
-        torch_dtype=torch.float32
+        torch_dtype=torch.float32,
     )
 
     policy_model = get_peft_model(policy_model, lora_config)
@@ -599,15 +612,6 @@ def run(profile=False, profile_max_batches=None):
 
     policy_model.audio_tower.float()
     policy_model.multi_modal_projector.float()
-
-    if profile:
-        PROFILER.set_meta(
-            device_map=getattr(policy_model, "hf_device_map", None),
-            gpu_names=[torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())],
-            torch_version=torch.__version__,
-            cuda_version=torch.version.cuda,
-        )
-        PROFILER.snapshot_memory("after_model_load")
 
     CHECKPOINT_DIR = "/data/not_backed_up/cosgrv/af3_project/mdpo_runs"
 
@@ -625,37 +629,61 @@ def run(profile=False, profile_max_batches=None):
 
     #gets train dataset to pytorch form
     train_dataset = AudioDPODataset(data)
+    collator = AudioMDPOCollator(processor)
 
-    #gets collator with our type of processor
-    collator= AudioMDPOCollator(processor)
+    PER_GPU_BATCH_SIZE = 1
 
-    # get dataloader
     loader = DataLoader(
         train_dataset,
-        batch_size=6,
+        batch_size=PER_GPU_BATCH_SIZE,
         shuffle=True,
-        collate_fn= collator
+        collate_fn=collator,
+        num_workers=0,
     )
 
-    print("Dataset size:", len(train_dataset))
-    print("Number of batches:", len(loader))
+    optimizer = torch.optim.AdamW(
+        (p for p in policy_model.parameters() if p.requires_grad),
+        lr=1e-6,
+    )
+
+    policy_model, optimizer, loader = accelerator.prepare(
+        policy_model,
+        optimizer,
+        loader,
+    )
+
+    unwrapped_policy_model = accelerator.unwrap_model(policy_model)
 
     if profile:
-        PROFILER.set_meta(num_batches_total=len(loader) * 3)  # 3 epochs
+        PROFILER.set_meta(
+            num_processes=accelerator.num_processes,
+            accelerator_device=str(accelerator.device),
+            torch_version=torch.__version__,
+            cuda_version=torch.version.cuda,
+            num_batches_total=len(loader) * NUM_EPOCHS,
+        )
+        PROFILER.snapshot_memory("after_model_load")
 
+    print(
+    f"Rank {accelerator.process_index} "
+    f"using {accelerator.device}",
+    flush=True,
+)
 
-    #optimizer with 1e-6 learning rate
-    optimizer = torch.optim.AdamW(policy_model.parameters(), lr=1e-6)
+    accelerator.print("Dataset size:", len(train_dataset))
+    accelerator.print("Batches on this process:", len(loader))
+    accelerator.print("Number of processes:", accelerator.num_processes)
+    accelerator.print("Process device:", accelerator.device)
 
     global_step = 0
     profiled_batches = 0
     truncated = False
-    for epoch in range(3):
+    for epoch in range(NUM_EPOCHS):
         #training mode
         policy_model.train()
 
         for batch in loader:
-            print(f"[Start] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
+            accelerator.print(f"[Start] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
             with PROFILER.section("batch_total"):
                 #gets the input sequence from that batch
@@ -667,25 +695,17 @@ def run(profile=False, profile_max_batches=None):
                 # rejected_inputs["input_features"] = rejected_inputs["input_features"].float()
                 # perturbed_inputs["input_features"] = perturbed_inputs["input_features"].float()
 
-                #pops labels and moves the tensors to gpu
+                #pops labels — batch tensors already arrive on the right device via
+                #accelerator.prepare(loader), no manual .to(device) needed anymore.
                 chosen_labels = chosen_inputs.pop("labels")
                 rejected_labels = rejected_inputs.pop("labels")
                 perturbed_labels = perturbed_inputs.pop("labels")
 
-                #moves to gpu
-                chosen_inputs = {k: v.to(policy_model.device) if isinstance(v, torch.Tensor) else v
-                                 for k, v in chosen_inputs.items()}
-                rejected_inputs = {k: v.to(policy_model.device) if isinstance(v, torch.Tensor) else v
-                                   for k, v in rejected_inputs.items()}
-                perturbed_inputs = {k: v.to(policy_model.device) if isinstance(v, torch.Tensor) else v
-                                    for k, v in perturbed_inputs.items()}
-
-                #moves to gpu
-                chosen_labels = chosen_labels.to(policy_model.device)
-                rejected_labels = rejected_labels.to(policy_model.device)
-                perturbed_labels = perturbed_labels.to(policy_model.device)
-                print("Batch ids:", batch["ids"])
-                print("Batch audio:", batch["audio_urls"])
+                print(
+                    f"Rank {accelerator.process_index}: "
+                    f"{chosen_inputs['input_ids'].device}",
+                    flush=True,
+                )
 
                 #forward pass
                 with PROFILER.section("policy_forward_chosen"):
@@ -695,11 +715,11 @@ def run(profile=False, profile_max_batches=None):
                 with PROFILER.section("policy_forward_perturbed"):
                     policy_perturbed_outputs = policy_model(**perturbed_inputs)
 
-                print(f"[After forward] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
+                accelerator.print(f"[After forward] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
                 #freezes reference model
 
-                with policy_model.disable_adapter():
+                with unwrapped_policy_model.disable_adapter():
                     with torch.no_grad():
                         with PROFILER.section("reference_forward_chosen"):
                             reference_chosen_outputs = policy_model(**chosen_inputs)
@@ -708,7 +728,7 @@ def run(profile=False, profile_max_batches=None):
                         with PROFILER.section("reference_forward_perturbed"):
                             reference_perturbed_outputs = policy_model(**perturbed_inputs)
 
-                print("NaN:", torch.isnan(policy_chosen_outputs.logits).any().item())
+                accelerator.print("NaN:", torch.isnan(policy_chosen_outputs.logits).any().item())
 
                 #logps
                 with PROFILER.section("compute_logps"):
@@ -745,26 +765,26 @@ def run(profile=False, profile_max_batches=None):
                     f"Perturbed reward: {perturbed_reward_mean:.4f}")
                 print(f"[After loss] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
-                if not profile:
-                    wandb.log({
-                    "train/step": global_step,
-                    "train/loss": loss.item(),
-                    "train/chosen_reward": chosen_reward_mean,
-                    "train/rejected_reward": rejected_reward_mean,
-                    "train/perturbed_reward": perturbed_reward_mean,
-                    "train/reward_margin": chosen_reward_mean - rejected_reward_mean,
-                    }, step=global_step)
+                if accelerator.is_main_process and not profile:
+                    wandb.log(
+                        {
+                            "train/step": global_step,
+                            "train/loss": loss.item(),
+                            "train/chosen_reward": chosen_reward_mean,
+                            "train/rejected_reward": rejected_reward_mean,
+                            "train/perturbed_reward": perturbed_reward_mean,
+                            "train/reward_margin": chosen_reward_mean - rejected_reward_mean,
+                        },
+                        step=global_step,
+                    )
 
                 global_step += 1
 
                 # backward + update
                 with PROFILER.section("backward"):
-                    optimizer.zero_grad()
-                    loss.backward()
-                print(f"[After step] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
+                    optimizer.zero_grad(set_to_none=True)
+                    accelerator.backward(loss)
 
-
-                #torch.nn.utils.clip_grad_norm_(policy_model.parameters(), max_norm=1.0)
                 with PROFILER.section("optimizer_step"):
                     optimizer.step()
 
@@ -791,38 +811,44 @@ def run(profile=False, profile_max_batches=None):
 
         policy_model.eval()
 
-        # Skip end-of-epoch eval/checkpoint entirely for a truncated diagnostic run —
-        # evaluate() is itself slow (unbatched) and a partial epoch's checkpoint isn't useful.
+        # eval disabled for now (accelerate/multi-process eval isn't wired up yet)
+        #val_acc = evaluate(
+        # policy_model,
+        # processor,
+        # val_data
+        # )
+
+        # wandb.log({
+        #     "val/accuracy": val_acc,
+        #     "epoch": epoch,
+        # }, step=global_step)
+
+        # Skip checkpointing entirely for a diagnostic profiling run (partial or not —
+        # any run with --profile-max-batches set is diagnostic, not a real training run).
         if not (profile and profile_max_batches is not None):
-
-            val_acc = evaluate(
-            policy_model,
-            processor,
-            val_data
-            )
-
-            if not profile:
-                wandb.log({
-                    "val/accuracy": val_acc,
-                    "epoch": epoch,
-                }, step=global_step)
-
-            checkpoint_path = os.path.join(CHECKPOINT_DIR, f"checkpoint-epoch-{epoch+1}")
-
             checkpoint_path = os.path.join(
             CHECKPOINT_DIR,
             f"checkpoint-epoch-{epoch+1}"
         )
 
-            policy_model.save_pretrained(checkpoint_path)
-            processor.save_pretrained(checkpoint_path)
+            accelerator.wait_for_everyone()
 
-            print(f"Saved checkpoint to {checkpoint_path}")
+            if accelerator.is_main_process:
+                unwrapped_model = accelerator.unwrap_model(policy_model)
+
+                unwrapped_model.save_pretrained(
+                    checkpoint_path,
+                    save_function=accelerator.save,
+                )
+                processor.save_pretrained(checkpoint_path)
+
+                print(f"Saved checkpoint to {checkpoint_path}")
 
 
     if profile:
         PROFILER.set_meta(num_batches_profiled=profiled_batches, truncated=truncated)
-        PROFILER.write_report(get_profile_report_path("dcase_train", tag=f"mdpo_beta_{beta}"))
+        if accelerator.is_main_process:
+            PROFILER.write_report(get_profile_report_path("dcase_train", tag=f"mdpo_beta_{beta}"))
 
     if truncated:
         print(f"\n{'='*60}")
@@ -831,11 +857,27 @@ def run(profile=False, profile_max_batches=None):
         print(f"{'='*60}")
         return
 
-    policy_model.save_pretrained("/data/not_backed_up/cosgrv/af3_project/mdpo_runs/checkpoint-final")
-    processor.save_pretrained("/data/not_backed_up/cosgrv//af3_project/mdpo_runs/checkpoint-final")
+    accelerator.wait_for_everyone()
 
-    if not profile:
-        wandb.finish()
+    if dist.is_initialized():
+        dist.destroy_process_group()
+
+    if accelerator.is_main_process:
+        final_path = (
+            "/data/not_backed_up/cosgrv/"
+            "af3_project/mdpo_runs/checkpoint-final"
+        )
+
+        unwrapped_model = accelerator.unwrap_model(policy_model)
+
+        unwrapped_model.save_pretrained(
+            final_path,
+            save_function=accelerator.save,
+        )
+        processor.save_pretrained(final_path)
+
+        if not profile:
+            wandb.finish()
 
 
 
