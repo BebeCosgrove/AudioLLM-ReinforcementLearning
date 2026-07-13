@@ -9,6 +9,8 @@ import peft
 from peft import LoraConfig, get_peft_model
 import wandb
 import re
+from accelerate import Accelerator
+import torch.distributed as dist
 
 
 #make dataset into pytorch dataset
@@ -352,9 +354,11 @@ def mdpo_loss(
     anchor_logits = policy_chosen_logps - reference_chosen_logps  # anchored preference
 
     # mDPO 
-    losses = -torch.nn.functional.logsigmoid(beta * logits)\
-        -torch.nn.functional.logsigmoid(beta * anchor_logits)
+    losses = losses = (
+    -torch.nn.functional.logsigmoid(beta * logits)
+    -torch.nn.functional.logsigmoid(beta * anchor_logits)
     -torch.nn.functional.logsigmoid(beta * audio_conditional_logits)
+)
     
             
 
@@ -513,20 +517,26 @@ def extract_choice_letter(text):
 
 
 def run():
-    device = "cuda"
+    accelerator = Accelerator(
+        mixed_precision="no",  # preserve float32, since bf16 caused NaNs for you
+    )
+    # device = "cuda"
     beta = 0.1
 
-    wandb.init(
-        project="af3-mdpo",
-        config={
-            "beta": beta,
-            "lr": 1e-6,
-            "batch_size": 6,
-            "epochs": 2,
-            "lora_r": 8,
-            "lora_alpha": 16,
-        }
-    )
+    if accelerator.is_main_process:
+        wandb.init(
+            project="af3-mdpo",
+            config={
+                "beta": beta,
+                "lr": 1e-6,
+                "batch_size_per_gpu": 1,
+                "num_gpus": accelerator.num_processes,
+                "effective_batch_size": accelerator.num_processes,
+                "epochs": 3,
+                "lora_r": 8,
+                "lora_alpha": 16,
+            },
+        )
 
     lora_config = LoraConfig(
     r=8,                    # rank — smaller = fewer params, less expressive
@@ -544,8 +554,7 @@ def run():
     #policy model
     policy_model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
     model_id,
-    device_map="auto",
-    torch_dtype=torch.float32
+    torch_dtype=torch.float32,
 )
 
     policy_model = get_peft_model(policy_model, lora_config)
@@ -573,32 +582,49 @@ def run():
 
     #gets train dataset to pytorch form
     train_dataset = AudioDPODataset(data)
+    collator = AudioMDPOCollator(processor)
 
-    #gets collator with our type of processor
-    collator= AudioMDPOCollator(processor)
+    PER_GPU_BATCH_SIZE = 1
 
-    # get dataloader
     loader = DataLoader(
         train_dataset,
-        batch_size=6,
+        batch_size=PER_GPU_BATCH_SIZE,
         shuffle=True,
-        collate_fn= collator
+        collate_fn=collator,
+        num_workers=0,
     )
 
-    print("Dataset size:", len(train_dataset))
-    print("Number of batches:", len(loader))
+    optimizer = torch.optim.AdamW(
+        (p for p in policy_model.parameters() if p.requires_grad),
+        lr=1e-6,
+    )
 
-    
-    #optimizer with 1e-6 learning rate
-    optimizer = torch.optim.AdamW(policy_model.parameters(), lr=1e-6)
+    policy_model, optimizer, loader = accelerator.prepare(
+        policy_model,
+        optimizer,
+        loader,
+    )
+
+    unwrapped_policy_model = accelerator.unwrap_model(policy_model)
+
+    print(
+    f"Rank {accelerator.process_index} "
+    f"using {accelerator.device}",
+    flush=True,
+)
+
+    accelerator.print("Dataset size:", len(train_dataset))
+    accelerator.print("Batches on this process:", len(loader))
+    accelerator.print("Number of processes:", accelerator.num_processes)
+    accelerator.print("Process device:", accelerator.device)
 
     global_step = 0
-    for epoch in range(3):
+    for epoch in range(1):
         #training mode
         policy_model.train()
 
         for batch in loader:
-            print(f"[Start] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
+            accelerator.print(f"[Start] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
             #gets the input sequence from that batch
             chosen_inputs = batch["chosen"]
@@ -615,36 +641,28 @@ def run():
             perturbed_labels = perturbed_inputs.pop("labels")
 
             #moves to gpu
-            chosen_inputs = {k: v.to(policy_model.device) if isinstance(v, torch.Tensor) else v 
-                             for k, v in chosen_inputs.items()}
-            rejected_inputs = {k: v.to(policy_model.device) if isinstance(v, torch.Tensor) else v 
-                               for k, v in rejected_inputs.items()}
-            perturbed_inputs = {k: v.to(policy_model.device) if isinstance(v, torch.Tensor) else v 
-                                for k, v in perturbed_inputs.items()}
-            
-            #moves to gpu
-            chosen_labels = chosen_labels.to(policy_model.device)
-            rejected_labels = rejected_labels.to(policy_model.device)
-            perturbed_labels = perturbed_labels.to(policy_model.device)
-            print("Batch ids:", batch["ids"])
-            print("Batch audio:", batch["audio_urls"])
+            print(
+            f"Rank {accelerator.process_index}: "
+            f"{chosen_inputs['input_ids'].device}",
+            flush=True,
+        )
 
             #forward pass
             policy_chosen_outputs = policy_model(**chosen_inputs)
             policy_rejected_outputs = policy_model(**rejected_inputs)
             policy_perturbed_outputs = policy_model(**perturbed_inputs)
 
-            print(f"[After forward] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
+            accelerator.print(f"[After forward] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
             #freezes reference model
 
-            with policy_model.disable_adapter():
+            with unwrapped_policy_model.disable_adapter():
                 with torch.no_grad():
                     reference_chosen_outputs = policy_model(**chosen_inputs)
                     reference_rejected_outputs = policy_model(**rejected_inputs)
                     reference_perturbed_outputs = policy_model(**perturbed_inputs)
 
-            print("NaN:", torch.isnan(policy_chosen_outputs.logits).any().item())
+            accelerator.print("NaN:", torch.isnan(policy_chosen_outputs.logits).any().item())
 
             #logps
             policy_chosen_logps = get_sequence_logps(policy_chosen_outputs.logits, chosen_labels)
@@ -679,24 +697,24 @@ def run():
                 f"Perturbed reward: {perturbed_reward_mean:.4f}")
             print(f"[After loss] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
-            wandb.log({
-            "train/step": global_step,
-            "train/loss": loss.item(),
-            "train/chosen_reward": chosen_reward_mean,
-            "train/rejected_reward": rejected_reward_mean,
-            "train/perturbed_reward": perturbed_reward_mean,
-            "train/reward_margin": chosen_reward_mean - rejected_reward_mean,
-            }, step=global_step)
+            if accelerator.is_main_process:
+                wandb.log(
+                    {
+                        "train/step": global_step,
+                        "train/loss": loss.item(),
+                        "train/chosen_reward": chosen_reward_mean,
+                        "train/rejected_reward": rejected_reward_mean,
+                        "train/perturbed_reward": perturbed_reward_mean,
+                        "train/reward_margin": chosen_reward_mean - rejected_reward_mean,
+                    },
+                    step=global_step,
+                )
 
             global_step += 1
 
             # backward + update
-            optimizer.zero_grad()
-            loss.backward()
-            print(f"[After step] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
-            
-        
-            #torch.nn.utils.clip_grad_norm_(policy_model.parameters(), max_norm=1.0)
+            optimizer.zero_grad(set_to_none=True)
+            accelerator.backward(loss)
             optimizer.step()
 
             del policy_chosen_outputs, policy_rejected_outputs, policy_perturbed_outputs
@@ -713,16 +731,16 @@ def run():
         policy_model.eval()
         
 
-        val_acc = evaluate(
-        policy_model,
-        processor,
-        val_data
-        )
+        #val_acc = evaluate(
+        # policy_model,
+        # processor,
+        # val_data
+        # )
 
-        wandb.log({
-            "val/accuracy": val_acc,
-            "epoch": epoch,
-        }, step=global_step)
+        # wandb.log({
+        #     "val/accuracy": val_acc,
+        #     "epoch": epoch,
+        # }, step=global_step)
 
         checkpoint_path = os.path.join(CHECKPOINT_DIR, f"checkpoint-epoch-{epoch+1}")
 
@@ -731,16 +749,42 @@ def run():
         f"checkpoint-epoch-{epoch+1}"
     )
 
-        policy_model.save_pretrained(checkpoint_path)
-        processor.save_pretrained(checkpoint_path)
+        accelerator.wait_for_everyone()
 
-        print(f"Saved checkpoint to {checkpoint_path}")
+        if accelerator.is_main_process:
+            unwrapped_model = accelerator.unwrap_model(policy_model)
+
+            unwrapped_model.save_pretrained(
+                checkpoint_path,
+                save_function=accelerator.save,
+            )
+            processor.save_pretrained(checkpoint_path)
+
+            print(f"Saved checkpoint to {checkpoint_path}")
+
+        
         
 
-    policy_model.save_pretrained("/data/not_backed_up/cosgrv/af3_project/mdpo_runs/checkpoint-final")
-    processor.save_pretrained("/data/not_backed_up/cosgrv//af3_project/mdpo_runs/checkpoint-final")
+    accelerator.wait_for_everyone()
 
-    wandb.finish()
+    if dist.is_initialized():
+        dist.destroy_process_group()
+
+    if accelerator.is_main_process:
+        final_path = (
+            "/data/not_backed_up/cosgrv/"
+            "af3_project/mdpo_runs/checkpoint-final"
+        )
+
+        unwrapped_model = accelerator.unwrap_model(policy_model)
+
+        unwrapped_model.save_pretrained(
+            final_path,
+            save_function=accelerator.save,
+        )
+        processor.save_pretrained(final_path)
+
+        wandb.finish()
 
 
 
