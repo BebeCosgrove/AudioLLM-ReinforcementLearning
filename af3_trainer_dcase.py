@@ -645,7 +645,6 @@ def run(profile=False, profile_max_batches=None):
         (p for p in policy_model.parameters() if p.requires_grad),
         lr=1e-6,
     )
-<<<<<<< HEAD
 
     policy_model, optimizer, loader = accelerator.prepare(
         policy_model,
@@ -654,8 +653,6 @@ def run(profile=False, profile_max_batches=None):
     )
 
     unwrapped_policy_model = accelerator.unwrap_model(policy_model)
-=======
->>>>>>> c63a7b71 (changes to dcase trainer)
 
     if profile:
         PROFILER.set_meta(
