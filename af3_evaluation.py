@@ -63,7 +63,7 @@ def evaluate(
                             "text": (
                                 "Focus on the given audio and answer the "
                                 "following multiple-choice question. "
-                                "Respond with only the letter of the correct "
+                                "Respond with the letter of the correct "
                                 "answer (A, B, C, or D)."
                             ),
                         }
@@ -284,15 +284,15 @@ def run_evaluation():
 
     training_model = PeftModel.from_pretrained(
         training_model,
-        "/data/not_backed_up/cosgrv/af3_project/"
-        "mdpo_runs/checkpoint-epoch-1",
+        "/data/not_backed_up/cosgrv/"
+            "af3_project/mdpo_runs/checkpoint-epoch-1"
     )
 
     training_model.config.use_cache = True
 
     mdpo_processor = AutoProcessor.from_pretrained(
-        "/data/not_backed_up/cosgrv/af3_project/"
-        "mdpo_runs/checkpoint-epoch-1"
+        "/data/not_backed_up/cosgrv/"
+            "af3_project/mdpo_runs/checkpoint-epoch-1"
     )
 
     training_model, mdpo_loader = accelerator.prepare(

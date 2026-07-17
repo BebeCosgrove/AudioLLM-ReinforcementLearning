@@ -1,4 +1,7 @@
-from transformers import AudioFlamingo3ForConditionalGeneration, AutoProcessor
+from io import BytesIO
+from urllib.request import urlopen
+import librosa
+from transformers import AutoProcessor, Qwen2AudioForConditionalGeneration
 import torch
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
@@ -29,6 +32,7 @@ class AudioMDPOCollator:
 
     def __init__(self, processor):
         self.processor = processor
+        self.sampling_rate = processor.feature_extractor.sampling_rate
 
     def __call__(self, examples):
 
@@ -40,18 +44,23 @@ class AudioMDPOCollator:
         chosen_response_convs = []
         rejected_response_convs = []
 
+        regular_audios = []
+        perturbed_audios = []
+
         for ex in examples:
             audio_path = ex["audio_url"]
             perturbed_audio_path = ex["perturbed_path"]  # already absolute
 
-            # MAX_AUDIO_SECONDS = 10
-            # MAX_AUDIO_SAMPLES = 16000 * MAX_AUDIO_SECONDS
+    
 
             audio = librosa.load(audio_path, sr=16000, mono=True)[0]
-            #audio = audio[:MAX_AUDIO_SAMPLES]
+        
 
             perturbed_audio = librosa.load(perturbed_audio_path, sr=16000, mono=True)[0]
-            #perturbed_audio = perturbed_audio[:MAX_AUDIO_SAMPLES]
+
+            regular_audios.append(audio)
+            perturbed_audios.append(perturbed_audio)
+    
 
             choices_text = "\n".join(ex["choice"])
             full_question = f"{ex['question']}\n{choices_text}"
@@ -75,7 +84,7 @@ class AudioMDPOCollator:
                     },
                     {
                         "type": "audio",
-                        "path": audio
+                        "audio": audio
                     }
                 ]
                 },
@@ -109,7 +118,7 @@ class AudioMDPOCollator:
                         },
                         {
                             "type": "audio",
-                            "path": audio
+                            "audio": audio
                         }
                     ]
                 },
@@ -143,7 +152,7 @@ class AudioMDPOCollator:
                         },
                         {
                             "type": "audio",
-                            "path": perturbed_audio
+                            "audio": perturbed_audio
                         }
                     ]
                 },
@@ -172,7 +181,7 @@ class AudioMDPOCollator:
                     "role": "user",
                     "content": [
                         {"type": "text", "text": full_question},
-                        {"type": "audio", "path": audio}
+                        {"type": "audio", "audio": audio}
                     ]
                 }
             ])
@@ -194,7 +203,7 @@ class AudioMDPOCollator:
                         {"type": "text", "text": full_question},
                         {
                             "type": "audio",
-                            "path": perturbed_audio
+                            "audio": perturbed_audio
                         }
                     ]
                 }
@@ -226,43 +235,79 @@ class AudioMDPOCollator:
                 }
             ])
 
-        
+
+
+        #apply chat template
         chosen_inputs = self.processor.apply_chat_template(
         chosen_convs,
-        tokenize=True,
-        return_dict=True,
-        output_labels=True,
+        tokenize=False,
         add_generation_prompt=False
     )
 
         rejected_inputs = self.processor.apply_chat_template(
         rejected_convs,
-        tokenize=True,
-        return_dict=True,
-        output_labels=True,
+        tokenize=False,
         add_generation_prompt=False
     )
     
         perturbed_inputs = self.processor.apply_chat_template(
         perturbed_convs,
-        tokenize=True,
-        return_dict=True,
-        output_labels=True,
+        tokenize=False,
         add_generation_prompt=False
     )
         
         prompt_inputs = self.processor.apply_chat_template(
         prompt_convs,
-        tokenize=True,
-        return_dict=True,
+        tokenize=False,
         add_generation_prompt=True
     )
         perturbed_prompt_inputs = self.processor.apply_chat_template(
         perturbed_prompt_convs,
-        tokenize=True,
-        return_dict=True,
+        tokenize=False,
         add_generation_prompt=True
     )
+        
+        #processor
+        chosen_inputs = self.processor(
+        text=chosen_inputs,
+        audio=regular_audios,
+        sampling_rate=self.sampling_rate,
+        padding=True,
+        return_tensors="pt",
+    )
+
+        rejected_inputs = self.processor(
+            text=rejected_inputs,
+            audio=regular_audios,
+            sampling_rate=self.sampling_rate,
+            padding=True,
+            return_tensors="pt",
+        )
+
+        perturbed_inputs = self.processor(
+            text=perturbed_inputs,
+            audio=perturbed_audios,
+            sampling_rate=self.sampling_rate,
+            padding=True,
+            return_tensors="pt",
+        )
+
+        prompt_inputs = self.processor(
+            text=prompt_inputs,
+            audio=regular_audios,
+            sampling_rate=self.sampling_rate,
+            padding=True,
+            return_tensors="pt",
+        )
+
+        perturbed_prompt_inputs = self.processor(
+            text=perturbed_prompt_inputs,
+            audio=perturbed_audios,
+            sampling_rate=self.sampling_rate,
+            padding=True,
+            return_tensors="pt",
+        )
+        
         #import pdb; pdb.set_trace()
 
 
@@ -294,12 +339,14 @@ class AudioMDPOCollator:
             prompt_len = prompt_lengths[b].item()
             response_start = chosen_start + prompt_len
             chosen_labels[b, response_start:] = chosen_inputs["input_ids"][b, response_start:]
+            chosen_labels[b][chosen_mask == 0] = -100
         for b in range(len(examples)):
             rejected_mask = rejected_inputs["attention_mask"][b]
             rejected_start = rejected_mask.nonzero()[0].item()
             prompt_len = prompt_lengths[b].item()
             response_start = rejected_start + prompt_len
             rejected_labels[b, response_start:] = rejected_inputs["input_ids"][b, response_start:]
+            rejected_labels[b][rejected_mask == 0] = -100
 
         for b in range(len(examples)):
             perturbed_mask = perturbed_inputs["attention_mask"][b]
@@ -307,6 +354,7 @@ class AudioMDPOCollator:
             perturbed_prompt_len = perturbed_prompt_lengths[b].item()
             response_start = perturbed_start + perturbed_prompt_len
             perturbed_labels[b, response_start:] = perturbed_inputs["input_ids"][b, response_start:]
+            perturbed_labels[b][perturbed_mask == 0] = -100
 
         
 
@@ -332,7 +380,7 @@ def mdpo_loss(
     reference_chosen_logps: torch.FloatTensor,
     reference_rejected_logps: torch.FloatTensor, 
     reference_perturbed_chosen_logps: torch.FloatTensor,
-    beta = 0.05,
+    beta = 0.15,
     reference_free: bool = False):
 
     pi_logratios = policy_chosen_logps - policy_rejected_logps
@@ -354,9 +402,11 @@ def mdpo_loss(
     anchor_logits = policy_chosen_logps - reference_chosen_logps  # anchored preference
 
     # mDPO 
-    losses = -torch.nn.functional.logsigmoid(beta * logits) \
-            -torch.nn.functional.logsigmoid(beta * audio_conditional_logits) \
-            -torch.nn.functional.logsigmoid(beta * anchor_logits)
+    losses = -torch.nn.functional.logsigmoid(beta * audio_conditional_logits) \
+            -(torch.nn.functional.logsigmoid(beta * anchor_logits)) \
+            -torch.nn.functional.logsigmoid(beta * logits)
+            
+            
     
             
 
@@ -516,17 +566,17 @@ def extract_choice_letter(text):
 
 def run():
     accelerator = Accelerator(
-        mixed_precision="no",  # preserve float32, since bf16 caused NaNs for you
+        mixed_precision="bf16",  # preserve float32, since bf16 caused NaNs for you
     )
     # device = "cuda"
-    beta = 0.1
+    beta = 0.15
 
     if accelerator.is_main_process:
         wandb.init(
-            project="af3-mdpo",
+            project="qwen2-mdpo",
             config={
                 "beta": beta,
-                "lr": 1e-6,
+                "lr": 1e-4,
                 "batch_size_per_gpu": 1,
                 "num_gpus": accelerator.num_processes,
                 "effective_batch_size": accelerator.num_processes,
@@ -536,35 +586,86 @@ def run():
             },
         )
 
+
+    
+    MODEL_ID = "/data/not_backed_up/cosgrv/huggingface_cache/hub/models--Qwen--Qwen2-Audio-7B-Instruct/snapshots/0a095220c30b7b31434169c3086508ef3ea5bf0a"
+
+    CACHE_DIR = (
+        "/data/not_backed_up/cosgrv/"
+        "huggingface_cache/hub"
+    )
+
+    processor = AutoProcessor.from_pretrained(
+        MODEL_ID,
+        cache_dir=CACHE_DIR,
+        trust_remote_code=True
+    )
+
+    policy_model = (
+        Qwen2AudioForConditionalGeneration
+        .from_pretrained(
+            MODEL_ID,
+            torch_dtype=torch.bfloat16,
+            cache_dir=CACHE_DIR,
+            trust_remote_code=True
+        )
+    )
+
+    language_lora_targets = [
+        name
+        for name, module in policy_model.named_modules()
+        if name.endswith(("q_proj", "v_proj"))
+        and "language_model.model.layers" in name
+    ]
+
+    print(
+    "Number of language-only LoRA targets:",
+    len(language_lora_targets),
+)
+
+    for name in language_lora_targets[:10]:
+        print(name)
+
     lora_config = LoraConfig(
-    r=8,                    # rank — smaller = fewer params, less expressive
-    lora_alpha=16,          # scaling factor
-    target_modules=["q_proj", "v_proj"],  # which layers to apply LoRA to
-    lora_dropout=0.05,
-    bias="none"
-)
+        r=8,
+        lora_alpha=16,
+        target_modules=language_lora_targets,
+        lora_dropout=0.05,
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
 
-    
-    
-    model_id = "nvidia/audio-flamingo-3-hf"
-    processor = AutoProcessor.from_pretrained(model_id)
-    processor.max_audio_len = 600
-    #policy model
-    policy_model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
-    model_id,
-    torch_dtype=torch.float32,
-)
+    policy_model = get_peft_model(
+    policy_model,
+    lora_config
+    )
 
-    policy_model = get_peft_model(policy_model, lora_config)
+    policy_model.print_trainable_parameters()
+    trainable_names = [
+        name
+        for name, param in policy_model.named_parameters()
+        if param.requires_grad
+    ]
 
-    policy_model.config.use_cache = False
-    policy_model.gradient_checkpointing_enable()
+    assert not any(
+        "audio_tower" in name
+        for name in trainable_names
+    )
 
-    
-    policy_model.audio_tower.float()
-    policy_model.multi_modal_projector.float()
+    assert all(
+        "language_model.model.layers" in name
+        for name in trainable_names
+    )
 
-    CHECKPOINT_DIR = "/data/not_backed_up/cosgrv/af3_project/mdpo_runs"
+    print("Confirmed: language-model-only LoRA")
+
+        
+
+
+    # policy_model = get_peft_model(policy_model, lora_config)
+
+
+    CHECKPOINT_DIR = "/data/not_backed_up/cosgrv/af3_project/mdpo_runs/qwen2"
 
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
@@ -572,46 +673,43 @@ def run():
     with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_no_audio_final.json") as f:
         data = json.load(f)
 
-
     with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_val_no_audio_final.json") as f:
         val_data = json.load(f)
 
-
-
-    #gets train dataset to pytorch form
-    train_dataset = AudioDPODataset(data)
     collator = AudioMDPOCollator(processor)
 
-    PER_GPU_BATCH_SIZE = 1
+    train_dataset = AudioDPODataset(data)
+
+    collator = AudioMDPOCollator(
+        processor
+    )
 
     loader = DataLoader(
         train_dataset,
-        batch_size=PER_GPU_BATCH_SIZE,
+        batch_size=1,
         shuffle=True,
         collate_fn=collator,
-        num_workers=0,
+        num_workers=0
     )
-
-
 
     optimizer = torch.optim.AdamW(
-        (p for p in policy_model.parameters() if p.requires_grad),
-        lr=1e-6,
+    (
+        parameter
+        for parameter in policy_model.parameters()
+        if parameter.requires_grad
+    ),
+    lr=1e-4,
     )
 
-    policy_model, optimizer, loader = accelerator.prepare(
-        policy_model,
-        optimizer,
-        loader,
-    )
+    print(next(policy_model.parameters()).device)
 
+    policy_model, optimizer, loader = accelerator.prepare(policy_model, optimizer,loader,)
+    
     unwrapped_policy_model = accelerator.unwrap_model(policy_model)
 
-    print(
-    f"Rank {accelerator.process_index} "
-    f"using {accelerator.device}",
-    flush=True,
-)
+
+    
+
 
     accelerator.print("Dataset size:", len(train_dataset))
     accelerator.print("Batches on this process:", len(loader))
@@ -619,7 +717,7 @@ def run():
     accelerator.print("Process device:", accelerator.device)
 
     global_step = 0
-    for epoch in range(1):
+    for epoch in range(4):
         #training mode
         policy_model.train()
 
@@ -644,9 +742,9 @@ def run():
             #moves to gpu
             print(
             f"Rank {accelerator.process_index}: "
-            f"{chosen_inputs['input_ids'].device}",
-            flush=True,
-        )
+            f"device={accelerator.device}, "
+            f"input={chosen_inputs['input_ids'].device}",
+            flush=True)
 
             #forward pass
             policy_chosen_outputs = policy_model(**chosen_inputs)
@@ -732,7 +830,7 @@ def run():
         policy_model.eval()
         
 
-        #val_acc = evaluate(
+        # val_acc = evaluate(
         # policy_model,
         # processor,
         # val_data
@@ -774,7 +872,7 @@ def run():
     if accelerator.is_main_process:
         final_path = (
             "/data/not_backed_up/cosgrv/"
-            "af3_project/mdpo_runs/checkpoint-final"
+            "af3_project/mdpo_runs/qwen2/checkpoint-final"
         )
 
         unwrapped_model = accelerator.unwrap_model(policy_model)
