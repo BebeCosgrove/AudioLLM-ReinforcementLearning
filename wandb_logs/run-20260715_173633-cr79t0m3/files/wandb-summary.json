@@ -1,0 +1,1 @@
+{"train/loss":2.071059226989746,"train/perturbed_reward":0.007949821650981903,"train/reward_margin":0.019737591966986656,"train/chosen_reward":0.002541603520512581,"train/rejected_reward":-0.017195988446474075,"train/step":1870,"_wandb":{"runtime":1340},"_runtime":1340.195171605,"_step":1870,"_timestamp":1.784156332547278e+09}

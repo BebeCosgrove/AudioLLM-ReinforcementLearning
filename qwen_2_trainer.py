@@ -380,7 +380,7 @@ def mdpo_loss(
     reference_chosen_logps: torch.FloatTensor,
     reference_rejected_logps: torch.FloatTensor, 
     reference_perturbed_chosen_logps: torch.FloatTensor,
-    beta = 0.15,
+    beta = 0.2,
     reference_free: bool = False):
 
     pi_logratios = policy_chosen_logps - policy_rejected_logps
@@ -402,9 +402,10 @@ def mdpo_loss(
     anchor_logits = policy_chosen_logps - reference_chosen_logps  # anchored preference
 
     # mDPO 
-    losses = -torch.nn.functional.logsigmoid(beta * audio_conditional_logits) \
-            -(torch.nn.functional.logsigmoid(beta * anchor_logits)) \
+    losses = -(torch.nn.functional.logsigmoid(beta * anchor_logits)) \
+            -torch.nn.functional.logsigmoid(beta * audio_conditional_logits) \
             -torch.nn.functional.logsigmoid(beta * logits)
+    
             
             
     
@@ -443,7 +444,7 @@ def mdpo_loss(
 #     return (token_logps * mask).sum(dim=-1)
 
 def get_sequence_logps(logits, labels):
-    shift_logits = logits[:, :-1, :].float()
+    shift_logits = logits[:, :-1, :]
     shift_labels = labels[:, 1:]
 
     log_probs = torch.log_softmax(shift_logits, dim=-1)
@@ -569,18 +570,19 @@ def run():
         mixed_precision="bf16",  # preserve float32, since bf16 caused NaNs for you
     )
     # device = "cuda"
-    beta = 0.15
+    beta = 0.2
 
     if accelerator.is_main_process:
         wandb.init(
             project="qwen2-mdpo",
+            name = "Beta-.2-epochs-5-lr-1e-4",
             config={
                 "beta": beta,
                 "lr": 1e-4,
                 "batch_size_per_gpu": 1,
                 "num_gpus": accelerator.num_processes,
                 "effective_batch_size": accelerator.num_processes,
-                "epochs": 3,
+                "epochs": 5,
                 "lora_r": 8,
                 "lora_alpha": 16,
             },
@@ -611,12 +613,24 @@ def run():
         )
     )
 
+    # print("\n=== First 100 module names ===")
+    # for i, (name, _) in enumerate(policy_model.named_modules()):
+    #     print(name)
+    #     if i >= 100:
+    #         break
+
+    # print("\n=== q_proj modules ===")
+    # for name, _ in policy_model.named_modules():
+    #     if name.endswith("q_proj"):
+    #         print(name)
+
+
     language_lora_targets = [
-        name
-        for name, module in policy_model.named_modules()
-        if name.endswith(("q_proj", "v_proj"))
-        and "language_model.model.layers" in name
-    ]
+    name
+    for name, module in policy_model.named_modules()
+    if name.endswith(("q_proj", "v_proj"))
+    and "model.language_model.layers" in name
+]
 
     print(
     "Number of language-only LoRA targets:",
@@ -641,20 +655,37 @@ def run():
     )
 
     policy_model.print_trainable_parameters()
+
     trainable_names = [
         name
-        for name, param in policy_model.named_parameters()
-        if param.requires_grad
+        for name, parameter in policy_model.named_parameters()
+        if parameter.requires_grad
     ]
+
+    print("\nFirst 10 trainable parameters:")
+    for name in trainable_names[:10]:
+        print(name)
+
+    assert len(trainable_names) > 0, "No trainable parameters found"
 
     assert not any(
         "audio_tower" in name
         for name in trainable_names
-    )
+    ), "Audio-tower parameters unexpectedly became trainable"
 
-    assert all(
-        "language_model.model.layers" in name
+    unexpected_trainable_names = [
+        name
         for name in trainable_names
+        if "language_model.layers" not in name
+    ]
+
+    if unexpected_trainable_names:
+        print("\nUnexpected trainable parameters:")
+        for name in unexpected_trainable_names:
+            print(name)
+
+    assert not unexpected_trainable_names, (
+        "Found trainable parameters outside the language-model layers"
     )
 
     print("Confirmed: language-model-only LoRA")
@@ -665,16 +696,16 @@ def run():
     # policy_model = get_peft_model(policy_model, lora_config)
 
 
-    CHECKPOINT_DIR = "/data/not_backed_up/cosgrv/af3_project/mdpo_runs/qwen2"
+    CHECKPOINT_DIR = "/data/not_backed_up/cosgrv/af3_project/mdpo_runs/qwen2/medium_time_mask"
 
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 
-    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_no_audio_final.json") as f:
+    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_light2_time_mask_final.json") as f:
         data = json.load(f)
 
-    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_val_no_audio_final.json") as f:
-        val_data = json.load(f)
+    # with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_val_no_audio_final.json") as f:
+    #     val_data = json.load(f)
 
     collator = AudioMDPOCollator(processor)
 
@@ -701,9 +732,24 @@ def run():
     lr=1e-4,
     )
 
-    print(next(policy_model.parameters()).device)
+    print(
+    f"PID={os.getpid()} "
+    f"before prepare: "
+    f"{next(policy_model.parameters()).device}"
+    )
 
     policy_model, optimizer, loader = accelerator.prepare(policy_model, optimizer,loader,)
+    print(
+    f"PID={os.getpid()} "
+    f"after prepare: "
+    f"{next(policy_model.parameters()).device}"
+)
+
+    print(
+    f"Rank={accelerator.process_index} "
+    f"local_rank={accelerator.local_process_index} "
+    f"accelerator.device={accelerator.device}"
+)
     
     unwrapped_policy_model = accelerator.unwrap_model(policy_model)
 
@@ -717,17 +763,36 @@ def run():
     accelerator.print("Process device:", accelerator.device)
 
     global_step = 0
-    for epoch in range(4):
+    for epoch in range(5):
         #training mode
         policy_model.train()
 
         for batch in loader:
+            for audio_path in batch["audio_urls"]:
+                print(
+                    f"Rank {accelerator.process_index}:",
+                    audio_path,
+                    librosa.get_duration(path=audio_path),
+                    flush=True,
+                )
             accelerator.print(f"[Start] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
             #gets the input sequence from that batch
             chosen_inputs = batch["chosen"]
             rejected_inputs = batch["rejected"]
             perturbed_inputs = batch["perturbed"]  
+
+            print(
+                chosen_inputs["input_ids"].shape,
+                rejected_inputs["input_ids"].shape,
+                perturbed_inputs["input_ids"].shape,
+            )
+
+            print(
+                chosen_inputs["input_features"].shape,
+                rejected_inputs["input_features"].shape,
+                perturbed_inputs["input_features"].shape,
+            )
 
             # chosen_inputs["input_features"] = chosen_inputs["input_features"].float()
             # rejected_inputs["input_features"] = rejected_inputs["input_features"].float()
@@ -746,31 +811,56 @@ def run():
             f"input={chosen_inputs['input_ids'].device}",
             flush=True)
 
-            #forward pass
+            # Policy forward passes
             policy_chosen_outputs = policy_model(**chosen_inputs)
+            policy_chosen_logps = get_sequence_logps(
+                policy_chosen_outputs.logits,
+                chosen_labels
+            )
+            del policy_chosen_outputs
+
             policy_rejected_outputs = policy_model(**rejected_inputs)
+            policy_rejected_logps = get_sequence_logps(
+                policy_rejected_outputs.logits,
+                rejected_labels
+            )
+            del policy_rejected_outputs
+
             policy_perturbed_outputs = policy_model(**perturbed_inputs)
+            policy_perturbed_logps = get_sequence_logps(
+                policy_perturbed_outputs.logits,
+                perturbed_labels
+            )
+            del policy_perturbed_outputs
 
             accelerator.print(f"[After forward] Allocated: {torch.cuda.memory_allocated()/1e9:.2f} GB")
 
             #freezes reference model
 
+            
+
             with unwrapped_policy_model.disable_adapter():
                 with torch.no_grad():
                     reference_chosen_outputs = policy_model(**chosen_inputs)
+                    reference_chosen_logps = get_sequence_logps(
+                        reference_chosen_outputs.logits,
+                        chosen_labels
+                    )
+                    del reference_chosen_outputs
+
                     reference_rejected_outputs = policy_model(**rejected_inputs)
+                    reference_rejected_logps = get_sequence_logps(
+                        reference_rejected_outputs.logits,
+                        rejected_labels
+                    )
+                    del reference_rejected_outputs
+
                     reference_perturbed_outputs = policy_model(**perturbed_inputs)
-
-            accelerator.print("NaN:", torch.isnan(policy_chosen_outputs.logits).any().item())
-
-            #logps
-            policy_chosen_logps = get_sequence_logps(policy_chosen_outputs.logits, chosen_labels)
-            policy_rejected_logps = get_sequence_logps(policy_rejected_outputs.logits, rejected_labels)
-            policy_perturbed_logps = get_sequence_logps(policy_perturbed_outputs.logits, perturbed_labels)
-
-            reference_chosen_logps = get_sequence_logps(reference_chosen_outputs.logits, chosen_labels)
-            reference_rejected_logps = get_sequence_logps(reference_rejected_outputs.logits, rejected_labels)
-            reference_perturbed_logps = get_sequence_logps(reference_perturbed_outputs.logits, perturbed_labels)
+                    reference_perturbed_logps = get_sequence_logps(
+                        reference_perturbed_outputs.logits,
+                        perturbed_labels
+                    )
+                    del reference_perturbed_outputs
 
 
 
@@ -815,9 +905,9 @@ def run():
             optimizer.zero_grad(set_to_none=True)
             accelerator.backward(loss)
             optimizer.step()
+            
 
-            del policy_chosen_outputs, policy_rejected_outputs, policy_perturbed_outputs
-            del reference_chosen_outputs, reference_rejected_outputs, reference_perturbed_outputs
+            
             del losses, chosen_rewards, rejected_rewards, perturbed_rewards, loss
             del policy_chosen_logps, policy_rejected_logps, policy_perturbed_logps
             del reference_chosen_logps, reference_rejected_logps, reference_perturbed_logps

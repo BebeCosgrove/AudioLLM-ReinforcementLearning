@@ -1,0 +1,1 @@
+{"train/loss":NaN,"_wandb":{"runtime":9344},"epoch":1,"val/accuracy":0,"_runtime":9344.083851567,"train/perturbed_reward":NaN,"train/rejected_reward":NaN,"train/chosen_reward":NaN,"train/reward_margin":NaN,"train/step":2071,"_step":2071,"_timestamp":1.7830211155350792e+09}

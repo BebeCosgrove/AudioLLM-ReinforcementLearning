@@ -1,0 +1,1 @@
+{"_wandb":{"runtime":4021},"_timestamp":1.7842392931286056e+09,"train/step":5612,"train/rejected_reward":-5.7781596183776855,"_step":5612,"train/chosen_reward":-1.6400288343429565,"train/perturbed_reward":-25.832128524780273,"train/loss":1.8331431150436401,"train/reward_margin":4.138130784034729,"_runtime":4021.163653868}

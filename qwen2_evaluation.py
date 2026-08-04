@@ -6,6 +6,8 @@ from torch.utils.data import DataLoader
 from peft import PeftModel
 from accelerate import Accelerator
 from accelerate.utils import gather_object
+from collections import defaultdict
+from pathlib import Path
 
 import torch
 import json
@@ -32,7 +34,7 @@ DATA_PATH = (
 )
 
 QWEN_CHECKPOINT = (
-    "/data/not_backed_up/cosgrv/af3_project/mdpo_runs/qwen2/checkpoint-epoch-2"
+    "/data/not_backed_up/cosgrv/af3_project/mdpo_runs/qwen2/medium_time_mask/checkpoint-epoch-1"
 )
 
 def extract_choice_letter(text):
@@ -45,6 +47,29 @@ def extract_choice_letter(text):
 
     return match.group(1) if match else None
 
+
+
+def infer_subset(example):
+    """
+    Infer the dataset subset from the beginning of the audio filename.
+
+    Rules:
+        fold...  -> Temporal
+        audio... -> Complex
+        anything else -> Bio
+
+    The extension and directory path do not matter.
+    """
+    audio_path = str(example.get("audio_url", ""))
+    audio_name = Path(audio_path).name.lower()
+
+    if audio_name.startswith("fold"):
+        return "Temporal"
+
+    if audio_name.startswith("audio"):
+        return "Complex"
+
+    return "Bio"
 
 def evaluate(
     model,
@@ -97,7 +122,10 @@ def evaluate(
                         {
                             "type": "text",
                             "text": (
-                                "Focus on the given audio and answer the following multiple-choice question. Respond with the letter of the correct answer (A, B, C, or D)."
+                                "Focus on the given audio and answer the "
+                                "following multiple-choice question. "
+                                "Respond with the letter of the correct "
+                                "answer (A, B, C, or D)."
                             ),
                         }
                     ],
@@ -129,16 +157,12 @@ def evaluate(
                 flush=True,
             )
 
-        # Qwen chat template returns formatted strings here.
-        formatted_texts = (
-            processor.apply_chat_template(
-                conversations,
-                tokenize=False,
-                add_generation_prompt=True,
-            )
+        formatted_texts = processor.apply_chat_template(
+            conversations,
+            tokenize=False,
+            add_generation_prompt=True,
         )
 
-        # Qwen processor jointly processes text and audio.
         inputs = processor(
             text=formatted_texts,
             audio=audios,
@@ -148,9 +172,11 @@ def evaluate(
         )
 
         inputs = {
-            key: value.to(accelerator.device)
-            if isinstance(value, torch.Tensor)
-            else value
+            key: (
+                value.to(accelerator.device)
+                if isinstance(value, torch.Tensor)
+                else value
+            )
             for key, value in inputs.items()
         }
 
@@ -171,13 +197,9 @@ def evaluate(
                 flush=True,
             )
 
-        # Remove the prompt tokens from generated output.
+        # Remove prompt tokens, leaving only newly generated tokens.
         prompt_length = inputs["input_ids"].shape[1]
-
-        response_ids = output_ids[
-            :,
-            prompt_length:,
-        ]
+        response_ids = output_ids[:, prompt_length:]
 
         predictions = processor.batch_decode(
             response_ids,
@@ -193,22 +215,23 @@ def evaluate(
             predicted_letter = extract_choice_letter(
                 prediction
             )
-
-            ground_truth_letter = (
-                extract_choice_letter(
-                    ground_truth
-                )
+            ground_truth_letter = extract_choice_letter(
+                ground_truth
             )
 
             is_correct = (
-                predicted_letter
-                == ground_truth_letter
+                predicted_letter == ground_truth_letter
             )
 
             results.append(
                 {
                     "id": example["id"],
                     "question": example["question"],
+                    "question_type": example.get(
+                        "question_type",
+                        "unknown",
+                    ),
+                    "subset": infer_subset(example),
                     "answer": ground_truth,
                     "prediction": prediction,
                     "pred_letter": predicted_letter,
@@ -221,13 +244,12 @@ def evaluate(
             if is_correct:
                 correct += 1
 
-    # Each process has only its local correct/total count.
+    # Sum local counts across all distributed processes.
     local_correct = torch.tensor(
         [correct],
         device=accelerator.device,
         dtype=torch.long,
     )
-
     local_total = torch.tensor(
         [len(results)],
         device=accelerator.device,
@@ -239,25 +261,102 @@ def evaluate(
         .sum()
         .item()
     )
-
     global_total = (
         accelerator.gather(local_total)
         .sum()
         .item()
     )
 
-    # Collect Python dictionaries from all ranks.
+    # Gather every prediction dictionary from every process.
     all_results = gather_object(results)
 
-    accuracy = (
+    overall_accuracy = (
         global_correct / global_total
         if global_total > 0
         else 0.0
     )
 
+    # --------------------------------------------------
+    # Accuracy by question type
+    # --------------------------------------------------
+    question_type_stats = defaultdict(
+        lambda: {"correct": 0, "total": 0}
+    )
+
+    for result in all_results:
+        question_type = result.get(
+            "question_type",
+            "unknown",
+        )
+        question_type_stats[question_type]["total"] += 1
+
+        if result["correct"]:
+            question_type_stats[question_type]["correct"] += 1
+
+    accuracy_by_question_type = {}
+
+    for question_type, counts in question_type_stats.items():
+        type_correct = counts["correct"]
+        type_total = counts["total"]
+
+        accuracy_by_question_type[question_type] = {
+            "accuracy": (
+                type_correct / type_total
+                if type_total > 0
+                else 0.0
+            ),
+            "correct": type_correct,
+            "total": type_total,
+        }
+
+    # --------------------------------------------------
+    # Accuracy by Bio / Temporal / Complex subset
+    # --------------------------------------------------
+    subset_stats = defaultdict(
+        lambda: {"correct": 0, "total": 0}
+    )
+
+    for result in all_results:
+        subset = result["subset"]
+        subset_stats[subset]["total"] += 1
+
+        if result["correct"]:
+            subset_stats[subset]["correct"] += 1
+
+    accuracy_by_subset = {}
+
+    for subset, counts in subset_stats.items():
+        subset_correct = counts["correct"]
+        subset_total = counts["total"]
+
+        accuracy_by_subset[subset] = {
+            "accuracy": (
+                subset_correct / subset_total
+                if subset_total > 0
+                else 0.0
+            ),
+            "correct": subset_correct,
+            "total": subset_total,
+        }
+
+    # Macro average gives each of the three subsets equal weight.
+    expected_subsets = ("Bio", "Temporal", "Complex")
+    available_subset_accuracies = [
+        accuracy_by_subset[subset]["accuracy"]
+        for subset in expected_subsets
+        if subset in accuracy_by_subset
+    ]
+
+    domain_average_accuracy = (
+        sum(available_subset_accuracies)
+        / len(available_subset_accuracies)
+        if available_subset_accuracies
+        else 0.0
+    )
+
     if accelerator.is_main_process:
         output_path = (
-            f"dcase_qwen_{output_prefix}_results.json"
+            f"dcase_verylight_time_mask_epoch_1.json"
         )
 
         with open(
@@ -266,26 +365,94 @@ def evaluate(
             encoding="utf-8",
         ) as file:
             json.dump(
-                all_results,
+                {
+                    "overall": {
+                        "accuracy": overall_accuracy,
+                        "correct": global_correct,
+                        "total": global_total,
+                    },
+                    "domain_average_accuracy": (
+                        domain_average_accuracy
+                    ),
+                    "accuracy_by_subset": (
+                        accuracy_by_subset
+                    ),
+                    "accuracy_by_question_type": (
+                        accuracy_by_question_type
+                    ),
+                    "results": all_results,
+                },
                 file,
                 indent=2,
             )
 
         print(
-            f"{output_prefix} accuracy: "
-            f"{accuracy:.4f} "
+            f"\n{output_prefix} overall accuracy: "
+            f"{overall_accuracy:.4f} "
             f"({global_correct}/{global_total})",
             flush=True,
         )
 
         print(
-            f"Saved results to {output_path}",
+            f"{output_prefix} domain-average accuracy: "
+            f"{domain_average_accuracy:.4f}",
+            flush=True,
+        )
+
+        print(
+            f"\n{output_prefix} accuracy by subset:",
+            flush=True,
+        )
+
+        for subset in expected_subsets:
+            if subset not in accuracy_by_subset:
+                print(
+                    f"  {subset}: no examples found",
+                    flush=True,
+                )
+                continue
+
+            stats = accuracy_by_subset[subset]
+
+            print(
+                f"  {subset}: "
+                f"{stats['accuracy']:.4f} "
+                f"({stats['correct']}/{stats['total']})",
+                flush=True,
+            )
+
+        print(
+            f"\n{output_prefix} accuracy by question type:",
+            flush=True,
+        )
+
+        for question_type in sorted(
+            accuracy_by_question_type
+        ):
+            stats = accuracy_by_question_type[question_type]
+
+            print(
+                f"  {question_type}: "
+                f"{stats['accuracy']:.4f} "
+                f"({stats['correct']}/{stats['total']})",
+                flush=True,
+            )
+
+        print(
+            f"\nSaved results to {output_path}",
             flush=True,
         )
 
     accelerator.wait_for_everyone()
 
-    return accuracy
+    return {
+        "overall_accuracy": overall_accuracy,
+        "domain_average_accuracy": domain_average_accuracy,
+        "accuracy_by_subset": accuracy_by_subset,
+        "accuracy_by_question_type": (
+            accuracy_by_question_type
+        ),
+    }
 
 def create_loader(data):
     return DataLoader(
@@ -317,66 +484,66 @@ def run_evaluation():
     # Baseline Qwen2-Audio model
     # --------------------------------------------------
 
-    baseline_loader = create_loader(data)
+    # baseline_loader = create_loader(data)
 
-    baseline_processor = (
-        AutoProcessor.from_pretrained(
-            LOCAL_MODEL_PATH,
-            cache_dir=CACHE_DIR,
-            trust_remote_code=True,
-        )
-    )
+    # baseline_processor = (
+    #     AutoProcessor.from_pretrained(
+    #         LOCAL_MODEL_PATH,
+    #         cache_dir=CACHE_DIR,
+    #         trust_remote_code=True,
+    #     )
+    # )
 
-    baseline_model = (
-        Qwen2AudioForConditionalGeneration
-        .from_pretrained(
-            LOCAL_MODEL_PATH,
-            torch_dtype=torch.bfloat16,
-            cache_dir=CACHE_DIR,
-            trust_remote_code=True,
-        )
-    )
+    # baseline_model = (
+    #     Qwen2AudioForConditionalGeneration
+    #     .from_pretrained(
+    #         LOCAL_MODEL_PATH,
+    #         torch_dtype=torch.bfloat16,
+    #         cache_dir=CACHE_DIR,
+    #         trust_remote_code=True,
+    #     )
+    # )
 
-    baseline_model.config.use_cache = True
+    # baseline_model.config.use_cache = True
 
-    baseline_model, baseline_loader = (
-        accelerator.prepare(
-            baseline_model,
-            baseline_loader,
-        )
-    )
+    # baseline_model, baseline_loader = (
+    #     accelerator.prepare(
+    #         baseline_model,
+    #         baseline_loader,
+    #     )
+    # )
 
-    baseline_unwrapped_model = (
-        accelerator.unwrap_model(
-            baseline_model
-        )
-    )
+    # baseline_unwrapped_model = (
+    #     accelerator.unwrap_model(
+    #         baseline_model
+    #     )
+    # )
 
-    accelerator.print(
-        "Starting baseline evaluation"
-    )
+    # accelerator.print(
+    #     "Starting baseline evaluation"
+    # )
 
-    baseline_accuracy = evaluate(
-        model=baseline_model,
-        unwrapped_model=baseline_unwrapped_model,
-        processor=baseline_processor,
-        loader=baseline_loader,
-        accelerator=accelerator,
-        output_prefix="baseline",
-    )
+    # baseline_accuracy = evaluate(
+    #     model=baseline_model,
+    #     unwrapped_model=baseline_unwrapped_model,
+    #     processor=baseline_processor,
+    #     loader=baseline_loader,
+    #     accelerator=accelerator,
+    #     output_prefix="baseline",
+    # )
 
-    # Free the baseline before loading another full model.
-    accelerator.wait_for_everyone()
+    # # Free the baseline before loading another full model.
+    # accelerator.wait_for_everyone()
 
-    del baseline_unwrapped_model
-    del baseline_model
-    del baseline_loader
-    del baseline_processor
+    # del baseline_unwrapped_model
+    # del baseline_model
+    # del baseline_loader
+    # del baseline_processor
 
-    accelerator.free_memory()
-    torch.cuda.empty_cache()
+    # accelerator.free_memory()
+    # torch.cuda.empty_cache()
 
-    accelerator.wait_for_everyone()
+    # accelerator.wait_for_everyone()
 
     # --------------------------------------------------
     # Qwen2-Audio mDPO model
@@ -384,6 +551,7 @@ def run_evaluation():
 
     mdpo_loader = create_loader(data)
 
+    
     training_base_model = (
         Qwen2AudioForConditionalGeneration
         .from_pretrained(
@@ -400,6 +568,9 @@ def run_evaluation():
     )
 
     training_model.config.use_cache = True
+
+    print("Adapter loaded successfully")
+    print(training_model.peft_config["default"].target_modules)
 
     # Prefer the processor saved with the checkpoint.
     if os.path.exists(QWEN_CHECKPOINT):
@@ -451,15 +622,27 @@ def run_evaluation():
             flush=True,
         )
 
+        # print(
+        #     f"Baseline overall accuracy: "
+        #     f"{baseline_accuracy['overall_accuracy']:.4f}",
+        #     flush=True,
+        # )
+
         print(
-            f"Baseline accuracy: "
-            f"{baseline_accuracy:.4f}",
+            f"mDPO overall accuracy: "
+            f"{mdpo_accuracy['overall_accuracy']:.4f}",
             flush=True,
         )
 
+        # print(
+        #     f"Baseline domain-average accuracy: "
+        #     f"{baseline_accuracy['domain_average_accuracy']:.4f}",
+        #     flush=True,
+        # )
+
         print(
-            f"mDPO accuracy: "
-            f"{mdpo_accuracy:.4f}",
+            f"mDPO domain-average accuracy: "
+            f"{mdpo_accuracy['domain_average_accuracy']:.4f}",
             flush=True,
         )
 

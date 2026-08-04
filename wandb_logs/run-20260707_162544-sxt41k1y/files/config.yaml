@@ -1,0 +1,89 @@
+_wandb:
+    value:
+        cli_version: 0.27.2
+        e:
+            wa6em4qwsl1ye1vo6dfdjkp92t6aqfe9:
+                codePath: af3_trainer_dcase.py
+                codePathLocal: af3_trainer_dcase.py
+                cpu_count: 64
+                cpu_count_logical: 128
+                cudaVersion: "13.3"
+                disk:
+                    /:
+                        total: "105089445888"
+                        used: "85728161792"
+                email: bcosgrove@smith.edu
+                executable: /opt/anaconda3-2024.06-1/bin/python
+                git:
+                    commit: 721731059b728e5fcdcdb4970db10cde8272d72f
+                    remote: https://github.com/BebeCosgrove/AudioLLM-ReinforcementLearning.git
+                gpu: NVIDIA H100 NVL
+                gpu_count: 4
+                gpu_nvidia:
+                    - architecture: Hopper
+                      cudaCores: 16896
+                      memoryTotal: "100485038080"
+                      name: NVIDIA H100 NVL
+                      uuid: GPU-137ed58e-4255-7e8c-9faf-c4d21f570daa
+                    - architecture: Hopper
+                      cudaCores: 16896
+                      memoryTotal: "100485038080"
+                      name: NVIDIA H100 NVL
+                      uuid: GPU-e487f56d-026c-676d-3520-40ded4db25fd
+                    - architecture: Hopper
+                      cudaCores: 16896
+                      memoryTotal: "100485038080"
+                      name: NVIDIA H100 NVL
+                      uuid: GPU-b8cb14cb-e246-fe51-fd9c-f86fab69c614
+                    - architecture: Hopper
+                      cudaCores: 16896
+                      memoryTotal: "100485038080"
+                      name: NVIDIA H100 NVL
+                      uuid: GPU-55785e80-f8e4-02e8-4d5d-f83659338615
+                host: weiran1-group.cs.uiowa.edu
+                memory:
+                    total: "540686217216"
+                os: Linux-6.8.0-134-generic-x86_64-with-glibc2.39
+                program: /data/not_backed_up/cosgrv/af3_project/af3_trainer_dcase.py
+                python: CPython 3.12.4
+                root: /data/not_backed_up/cosgrv/af3_project
+                startedAt: "2026-07-07T21:25:44.325870Z"
+                writerId: wa6em4qwsl1ye1vo6dfdjkp92t6aqfe9
+        m: []
+        python_version: 3.12.4
+        t:
+            "1":
+                - 1
+                - 5
+                - 11
+                - 49
+                - 53
+                - 71
+                - 98
+            "2":
+                - 1
+                - 5
+                - 11
+                - 49
+                - 53
+                - 71
+                - 98
+            "3":
+                - 16
+            "4": 3.12.4
+            "5": 0.27.2
+            "6": 5.9.0
+            "12": 0.27.2
+            "13": linux-x86_64
+batch_size:
+    value: 4
+beta:
+    value: 0.1
+epochs:
+    value: 2
+lora_alpha:
+    value: 16
+lora_r:
+    value: 8
+lr:
+    value: 1e-06

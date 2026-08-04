@@ -98,6 +98,7 @@ PERTURBATION_SPECS: Dict[Perturbation, Dict[str, Dict]] = {
     
     # === ADDITIVE NOISE ===
     Perturbation.NOISE: {
+        "weak": {"sigma": 0.02},
         "heavy": {"sigma": 0.3},
         "very_heavy": {"sigma": 0.5},
         "extreme": {"sigma": 0.6},
@@ -149,7 +150,10 @@ PERTURBATION_SPECS: Dict[Perturbation, Dict[str, Dict]] = {
     },
     
     Perturbation.TIME_MASK: {
+        "verylight": {"n_masks": 3, "max_width": 0.05},
         "light": {"n_masks": 3, "max_width": 0.08},  # New: few short masks
+        "light2": {"n_masks": 2, "max_width": 0.08}, 
+        "medium": {"n_masks": 3, "max_width": 0.1},
         "heavy": {"n_masks": 5, "max_width": 0.15},
         "extreme": {"n_masks": 10, "max_width": 0.1},
     },
@@ -597,7 +601,7 @@ PERTURBATION_INFO: Dict[Perturbation, PerturbationInfo] = {
 # PERTURBATION IMPLEMENTATIONS
 # =============================================================================
 
-def apply_noise(audio: np.ndarray, sigma: float = 0.3) -> np.ndarray:
+def apply_noise(audio: np.ndarray, sigma: float = 0.1) -> np.ndarray:
     """Add Gaussian white noise."""
     noise = np.random.randn(*audio.shape).astype(np.float32) * sigma
     return audio + noise
@@ -1195,13 +1199,14 @@ if __name__ == "__main__":
     import os
     import librosa
     import soundfile as sf
+    import random
     print("after import")
 
 
     INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_no_audio_final.json"
-    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_noise_final.json"
+    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_light2_time_mask_final.json"
 
-    OUTPUT_AUDIO_DIR = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_audio/dcase_noise"
+    OUTPUT_AUDIO_DIR = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_audio/dcase_light2_time_mask"
     os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
 
     print("start")
@@ -1214,10 +1219,28 @@ if __name__ == "__main__":
 
     new_data = []
 
-    pert_type = Perturbation.NOISE
-    setting = "heavy"
+    # SEED = 42
+    # rng = random.Random(SEED)
 
-    pert_fn = get_perturbation(pert_type, setting, sr=16000)
+    # #shuffles data indices
+    # indices = list(range(len(data)))
+    # rng.shuffle(indices)
+
+    # perturbation_assignments = {}
+
+    # perturbation_configs = [
+    #     (Perturbation.NO_AUDIO, None),
+    #     (Perturbation.TIME_MASK, "light"),
+    #     (Perturbation.NOISE, "weak"),
+    # ]
+
+    # for shuffled_position, original_index in enumerate(indices):
+    #     pert_type, setting = perturbation_configs[shuffled_position % 3]
+    #     perturbation_assignments[original_index] = (pert_type, setting)
+
+
+    pert_type = Perturbation.TIME_MASK
+    setting = "light2"
 
     
 
@@ -1226,59 +1249,75 @@ if __name__ == "__main__":
             print(f"Processing {i}/{len(data)}")
 
         audio_path = item["audio_url"]
-        print(audio_path)
-        print(os.path.exists(audio_path))
 
         try:
-            audio, _ = librosa.load(audio_path, sr=16000)
+            audio, _ = librosa.load(
+                audio_path,
+                sr=16000,
+                mono=True,
+            )
         except Exception as e:
-            #print(f"Failed: {audio_path}")
+            print(f"Failed to load {audio_path}: {e}")
             continue
+
+        pert_fn = get_perturbation(
+                                    pert_type,
+                                    setting,
+                                    sr=16000,
+                                )
 
         pert_audio = pert_fn(audio)
 
-        stem = os.path.splitext(os.path.basename(audio_path))[0]
+
+        stem = os.path.splitext(
+                os.path.basename(audio_path)
+            )[0]
 
         pert_path = os.path.join(
-            OUTPUT_AUDIO_DIR,
-            f"{stem}_{pert_type.name.lower()}.wav"
-        )
+                OUTPUT_AUDIO_DIR,
+                f"{stem}_{pert_type.name.lower()}.wav",
+            )
 
         sf.write(pert_path, pert_audio, 16000)
-
+        
         new_item = item.copy()
         new_item["perturbed_path"] = pert_path
         new_item["perturbation"] = pert_type.name
         new_item["perturbation_setting"] = setting
-
         new_data.append(new_item)
+
+        # for pert_type, setting in perturbation_configs:
+        #     pert_fn = get_perturbation(
+        #                 pert_type,
+        #                 setting,
+        #                 sr=16000,
+        #             )
+            
+
+        #     pert_audio = pert_fn(audio)
+
+        #     stem = os.path.splitext(
+        #         os.path.basename(audio_path)
+        #     )[0]
+
+        #     pert_path = os.path.join(
+        #         OUTPUT_AUDIO_DIR,
+        #         f"{stem}_{pert_type.name.lower()}.wav",
+        #     )
+
+        #     sf.write(pert_path, pert_audio, 16000)
+
+        #     new_item = item.copy()
+        #     new_item["perturbed_path"] = pert_path
+        #     new_item["perturbation"] = pert_type.name
+        #     new_item["perturbation_setting"] = setting
+
+        #     new_data.append(new_item)
+        #     counts[pert_type.name] += 1
 
     with open(OUTPUT_JSON, "w") as f:
         json.dump(new_data, f, indent=2)
 
     print(f"Saved {len(new_data)} examples")
+    # print("Perturbation counts:", counts)
 
-    # # # --- CONFIG ---
-    # # clotho_audio_dir = "datasets/clotho_aqa/audio_files"
-    # output_base = "debug/perturbation_samples"
-    # audio, sr = sf.read("/data/not_backed_up/cosgrv/af3_project/data/_UvwGWvKmcg_1.wav")
-
-    # if len(audio.shape) > 1:
-    #     audio = audio.mean(axis=1)
-
-    # audio = audio.astype("float32")
-
-    # audio = librosa.resample(audio, orig_sr=sr, target_sr=16000)
-    # sr = 16000
-
-    # # Create a subfolder for this sample
-    # sample_folder = os.path.join(output_base, "test")
-    # os.makedirs(sample_folder, exist_ok=True)
-
-    # # Save the original
-    
-    # pert_audio = apply_reverse(audio)
-    # out_path = os.path.join(sample_folder, "test_pert1.wav")
-    # sf.write(out_path, pert_audio, sr)
-    # print(f"Saved")
-    

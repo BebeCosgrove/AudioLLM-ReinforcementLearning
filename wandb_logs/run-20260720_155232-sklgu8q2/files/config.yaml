@@ -1,0 +1,95 @@
+_wandb:
+    value:
+        cli_version: 0.27.2
+        e:
+            g2g853321561l9ruzcwgndsjojok81hp:
+                codePath: qwen_2_trainer.py
+                codePathLocal: qwen_2_trainer.py
+                cpu_count: 64
+                cpu_count_logical: 128
+                cudaVersion: "13.3"
+                disk:
+                    /:
+                        total: "105089445888"
+                        used: "85709541376"
+                email: bcosgrove@smith.edu
+                executable: /opt/anaconda3-2024.06-1/bin/python
+                git:
+                    commit: bf670697bf819167c3dc092dc123028ce26eceff
+                    remote: https://github.com/BebeCosgrove/AudioLLM-ReinforcementLearning.git
+                gpu: NVIDIA H100 NVL
+                gpu_count: 4
+                gpu_nvidia:
+                    - architecture: Hopper
+                      cudaCores: 16896
+                      memoryTotal: "100485038080"
+                      name: NVIDIA H100 NVL
+                      uuid: GPU-137ed58e-4255-7e8c-9faf-c4d21f570daa
+                    - architecture: Hopper
+                      cudaCores: 16896
+                      memoryTotal: "100485038080"
+                      name: NVIDIA H100 NVL
+                      uuid: GPU-e487f56d-026c-676d-3520-40ded4db25fd
+                    - architecture: Hopper
+                      cudaCores: 16896
+                      memoryTotal: "100485038080"
+                      name: NVIDIA H100 NVL
+                      uuid: GPU-b8cb14cb-e246-fe51-fd9c-f86fab69c614
+                    - architecture: Hopper
+                      cudaCores: 16896
+                      memoryTotal: "100485038080"
+                      name: NVIDIA H100 NVL
+                      uuid: GPU-55785e80-f8e4-02e8-4d5d-f83659338615
+                host: weiran1-group.cs.uiowa.edu
+                memory:
+                    total: "540680183808"
+                os: Linux-6.8.0-134-generic-x86_64-with-glibc2.39
+                program: /data/not_backed_up/cosgrv/af3_project/qwen_2_trainer.py
+                python: CPython 3.12.4
+                root: /data/not_backed_up/cosgrv/af3_project
+                startedAt: "2026-07-20T20:52:32.798767Z"
+                writerId: g2g853321561l9ruzcwgndsjojok81hp
+        m: []
+        python_version: 3.12.4
+        t:
+            "1":
+                - 1
+                - 5
+                - 11
+                - 49
+                - 53
+                - 71
+                - 98
+            "2":
+                - 1
+                - 5
+                - 11
+                - 49
+                - 53
+                - 71
+                - 98
+            "3":
+                - 13
+                - 16
+                - 61
+            "4": 3.12.4
+            "5": 0.27.2
+            "6": 5.9.0
+            "12": 0.27.2
+            "13": linux-x86_64
+batch_size_per_gpu:
+    value: 1
+beta:
+    value: 0.2
+effective_batch_size:
+    value: 4
+epochs:
+    value: 5
+lora_alpha:
+    value: 16
+lora_r:
+    value: 8
+lr:
+    value: 0.0001
+num_gpus:
+    value: 4
