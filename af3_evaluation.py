@@ -12,6 +12,8 @@ import re
 import soundfile as sf
 from accelerate import Accelerator
 from accelerate.utils import gather_object
+from collections import defaultdict
+from pathlib import Path
 
 
 BATCH_SIZE = 4
@@ -103,18 +105,20 @@ def evaluate(
             for key, value in inputs.items()
         }
 
-        inputs["input_features"] = inputs[
-            "input_features"
-        ].to(torch.bfloat16)
+        inputs["input_features"] = inputs["input_features"].to(torch.bfloat16)
 
         start = time.time()
 
         with torch.inference_mode():
-            output_ids = unwrapped_model.generate(
-                **inputs,
-                max_new_tokens=4,
-                do_sample=False,
-            )
+            with torch.autocast(
+                device_type="cuda",
+                dtype=torch.bfloat16,
+            ):
+                output_ids = unwrapped_model.generate(
+                    **inputs,
+                    max_new_tokens=4,
+                    do_sample=False,
+                )
 
         if accelerator.is_main_process:
             print(
@@ -141,17 +145,25 @@ def evaluate(
             is_correct = pred_letter == gt_letter
 
             results.append(
-                {
-                    "id": ex["id"],
-                    "question": ex["question"],
-                    "answer": gt,
-                    "prediction": pred,
-                    "pred_letter": pred_letter,
-                    "gt_letter": gt_letter,
-                    "correct": is_correct,
-                    "audio_url": ex["audio_url"],
-                }
-            )
+    {
+        "id": ex["id"],
+        "question": ex["question"],
+
+        # subgroup information
+        "question_type": ex.get(
+            "question_type",
+            "unknown",
+        ),
+        "subset": infer_subset(ex),
+
+        "answer": gt,
+        "prediction": pred,
+        "pred_letter": pred_letter,
+        "gt_letter": gt_letter,
+        "correct": is_correct,
+        "audio_url": ex["audio_url"],
+    }
+)
 
             if is_correct:
                 correct += 1
@@ -173,29 +185,278 @@ def evaluate(
 
     all_results = gather_object(results)
 
-    accuracy = global_correct / global_total
+    overall_accuracy = (
+        global_correct / global_total
+        if global_total > 0
+        else 0.0
+    )
+
+
+    # ==========================================================
+    # ACCURACY BY QUESTION TYPE
+    # ==========================================================
+
+    question_type_stats = defaultdict(
+        lambda: {"correct": 0, "total": 0}
+    )
+
+    for result in all_results:
+
+        question_type = result.get(
+            "question_type",
+            "unknown",
+        )
+
+        question_type_stats[
+            question_type
+        ]["total"] += 1
+
+        if result["correct"]:
+            question_type_stats[
+                question_type
+            ]["correct"] += 1
+
+
+    accuracy_by_question_type = {}
+
+    for question_type, counts in question_type_stats.items():
+
+        type_correct = counts["correct"]
+        type_total = counts["total"]
+
+        accuracy_by_question_type[
+            question_type
+        ] = {
+            "accuracy": (
+                type_correct / type_total
+                if type_total > 0
+                else 0.0
+            ),
+            "correct": type_correct,
+            "total": type_total,
+        }
+
+
+    # ==========================================================
+    # ACCURACY BY DATASET SUBSET
+    # Bio / Temporal / Complex
+    # ==========================================================
+
+    subset_stats = defaultdict(
+        lambda: {"correct": 0, "total": 0}
+    )
+
+    for result in all_results:
+
+        subset = result["subset"]
+
+        subset_stats[subset]["total"] += 1
+
+        if result["correct"]:
+            subset_stats[
+                subset
+            ]["correct"] += 1
+
+
+    accuracy_by_subset = {}
+
+    for subset, counts in subset_stats.items():
+
+        subset_correct = counts["correct"]
+        subset_total = counts["total"]
+
+        accuracy_by_subset[subset] = {
+            "accuracy": (
+                subset_correct / subset_total
+                if subset_total > 0
+                else 0.0
+            ),
+            "correct": subset_correct,
+            "total": subset_total,
+        }
+
+
+    # ==========================================================
+    # DOMAIN AVERAGE
+    # ==========================================================
+
+    expected_subsets = (
+        "Bio",
+        "Temporal",
+        "Complex",
+    )
+
+    available_subset_accuracies = [
+        accuracy_by_subset[subset]["accuracy"]
+        for subset in expected_subsets
+        if subset in accuracy_by_subset
+    ]
+
+    domain_average_accuracy = (
+        sum(available_subset_accuracies)
+        / len(available_subset_accuracies)
+        if available_subset_accuracies
+        else 0.0
+    )
+
+
+    # ==========================================================
+    # SAVE + PRINT RESULTS
+    # ==========================================================
 
     if accelerator.is_main_process:
+
+        output_path = (
+            f"dcase_{output_prefix}_results.json"
+        )
+
         with open(
-            f"dcase_{output_prefix}_results.json",
+            output_path,
             "w",
+            encoding="utf-8",
         ) as f:
-            json.dump(all_results, f, indent=2)
+
+            json.dump(
+                {
+                    "overall": {
+                        "accuracy": overall_accuracy,
+                        "correct": global_correct,
+                        "total": global_total,
+                    },
+
+                    "domain_average_accuracy":
+                        domain_average_accuracy,
+
+                    "accuracy_by_subset":
+                        accuracy_by_subset,
+
+                    "accuracy_by_question_type":
+                        accuracy_by_question_type,
+
+                    "results":
+                        all_results,
+                },
+                f,
+                indent=2,
+            )
+
+
+        # ------------------------------------------------------
+        # Overall
+        # ------------------------------------------------------
 
         print(
-            f"{output_prefix} accuracy: {accuracy:.4f}",
+            f"\n{output_prefix} overall accuracy: "
+            f"{overall_accuracy:.4f} "
+            f"({global_correct}/{global_total})",
             flush=True,
         )
 
+        print(
+            f"{output_prefix} domain-average accuracy: "
+            f"{domain_average_accuracy:.4f}",
+            flush=True,
+        )
+
+
+        # ------------------------------------------------------
+        # Subsets
+        # ------------------------------------------------------
+
+        print(
+            f"\n{output_prefix} accuracy by subset:",
+            flush=True,
+        )
+
+        for subset in expected_subsets:
+
+            if subset not in accuracy_by_subset:
+
+                print(
+                    f"  {subset}: no examples found",
+                    flush=True,
+                )
+
+                continue
+
+            stats = accuracy_by_subset[subset]
+
+            print(
+                f"  {subset}: "
+                f"{stats['accuracy']:.4f} "
+                f"({stats['correct']}/{stats['total']})",
+                flush=True,
+            )
+
+
+        # ------------------------------------------------------
+        # Question types
+        # ------------------------------------------------------
+
+        print(
+            f"\n{output_prefix} accuracy by question type:",
+            flush=True,
+        )
+
+        for question_type in sorted(
+            accuracy_by_question_type
+        ):
+
+            stats = accuracy_by_question_type[
+                question_type
+            ]
+
+            print(
+                f"  {question_type}: "
+                f"{stats['accuracy']:.4f} "
+                f"({stats['correct']}/{stats['total']})",
+                flush=True,
+            )
+
+        print(
+            f"\nSaved results to {output_path}",
+            flush=True,
+        )
+
+
     accelerator.wait_for_everyone()
 
-    return accuracy
+
+    return {
+            "overall_accuracy": overall_accuracy,
+            "domain_average_accuracy":
+                domain_average_accuracy,
+            "accuracy_by_subset":
+                accuracy_by_subset,
+            "accuracy_by_question_type":
+                accuracy_by_question_type,
+        }
 
 
 def extract_choice_letter(text):
     """Extract the choice letter (A, B, C, D) from a response or answer string."""
     match = re.search(r'\b([A-D])\b', text.strip().upper())
     return match.group(1) if match else None
+
+def infer_subset(example):
+    """
+    Infer dataset subset from audio filename.
+
+    fold...  -> Temporal
+    audio... -> Complex
+    anything else -> Bio
+    """
+
+    audio_path = str(example.get("audio_url", ""))
+    audio_name = Path(audio_path).name.lower()
+
+    if audio_name.startswith("fold"):
+        return "Temporal"
+
+    if audio_name.startswith("audio"):
+        return "Complex"
+
+    return "Bio"
 
 
 def run_evaluation():
@@ -206,49 +467,53 @@ def run_evaluation():
     with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/combined_json/dcase_split_test.json") as f:
         data = json.load(f)
 
-    # baseline model
-    baseline_loader = DataLoader(
-        data,
-        batch_size=BATCH_SIZE,
-        shuffle=False,
-        collate_fn=lambda x: x,
-    )
+    # # baseline model
+    # baseline_loader = DataLoader(
+    #     data,
+    #     batch_size=BATCH_SIZE,
+    #     shuffle=False,
+    #     collate_fn=lambda x: x,
+    # )
 
-    baseline_model = (
-        AudioFlamingo3ForConditionalGeneration.from_pretrained(
-            "nvidia/audio-flamingo-3-hf",
-            torch_dtype=torch.bfloat16,
-        )
-    )
+    # baseline_model = (
+    #     AudioFlamingo3ForConditionalGeneration.from_pretrained(
+    #         "nvidia/audio-flamingo-3-hf",
+    #         torch_dtype=torch.bfloat16,
+    #     )
+    # )
 
-    baseline_processor = AutoProcessor.from_pretrained(
-        "nvidia/audio-flamingo-3-hf"
-    )
 
-    baseline_model, baseline_loader = accelerator.prepare(
-        baseline_model,
-        baseline_loader,
-    )
 
-    unwrapped_model = accelerator.unwrap_model(baseline_model)
+    # baseline_processor = AutoProcessor.from_pretrained(
+    #     "nvidia/audio-flamingo-3-hf"
+    # )
 
-    baseline_accuracy = evaluate(
-        baseline_model,
-        unwrapped_model,
-        baseline_processor,
-        baseline_loader,
-        accelerator,
-        output_prefix="baseline",
-    )
+    
 
-    accelerator.wait_for_everyone()
+    # baseline_model, baseline_loader = accelerator.prepare(
+    #     baseline_model,
+    #     baseline_loader,
+    # )
 
-    del unwrapped_model
-    del baseline_model
-    del baseline_loader
+    # unwrapped_model = accelerator.unwrap_model(baseline_model)
 
-    accelerator.free_memory()
-    torch.cuda.empty_cache()
+    # baseline_accuracy = evaluate(
+    #     baseline_model,
+    #     unwrapped_model,
+    #     baseline_processor,
+    #     baseline_loader,
+    #     accelerator,
+    #     output_prefix="baseline",
+    # )
+
+    # accelerator.wait_for_everyone()
+
+    # del unwrapped_model
+    # del baseline_model
+    # del baseline_loader
+
+    # accelerator.free_memory()
+    # torch.cuda.empty_cache()
 
     # data = data[:500]
 
@@ -282,6 +547,8 @@ def run_evaluation():
         )
     )
 
+    
+
     training_model = PeftModel.from_pretrained(
         training_model,
         "/data/not_backed_up/cosgrv/"
@@ -312,8 +579,25 @@ def run_evaluation():
     )
 
     if accelerator.is_main_process:
-        print("Baseline Accuracy:", baseline_accuracy)
-        print("mDPO Accuracy:", mdpo_accuracy)
+#         print(
+#     "Baseline Overall Accuracy:",
+#     baseline_accuracy["overall_accuracy"],
+# )
+
+#         print(
+#             "Baseline Domain Average:",
+#             baseline_accuracy["domain_average_accuracy"],
+#         )
+
+        print(
+            "mDPO Overall Accuracy:",
+            mdpo_accuracy["overall_accuracy"],
+        )
+
+        print(
+            "mDPO Domain Average:",
+            mdpo_accuracy["domain_average_accuracy"],
+        )
     
     
 

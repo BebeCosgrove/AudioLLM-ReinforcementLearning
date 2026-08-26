@@ -561,8 +561,7 @@ def run():
     policy_model.gradient_checkpointing_enable()
 
     
-    policy_model.audio_tower.float()
-    policy_model.multi_modal_projector.float()
+
 
     CHECKPOINT_DIR = "/data/not_backed_up/cosgrv/af3_project/mdpo_runs"
 
@@ -573,8 +572,8 @@ def run():
         data = json.load(f)
 
 
-    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_val_no_audio_final.json") as f:
-        val_data = json.load(f)
+    # with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_val_no_audio_final.json") as f:
+    #     val_data = json.load(f)
 
 
 
@@ -619,7 +618,7 @@ def run():
     accelerator.print("Process device:", accelerator.device)
 
     global_step = 0
-    for epoch in range(1):
+    for epoch in range(5):
         #training mode
         policy_model.train()
 

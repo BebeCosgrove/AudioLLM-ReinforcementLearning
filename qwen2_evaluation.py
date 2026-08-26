@@ -34,7 +34,7 @@ DATA_PATH = (
 )
 
 QWEN_CHECKPOINT = (
-    "/data/not_backed_up/cosgrv/af3_project/mdpo_runs/qwen2/medium_time_mask/checkpoint-epoch-1"
+    "/data/not_backed_up/cosgrv/af3_project/mdpo_runs/qwen2/light_noise/checkpoint-epoch-1"
 )
 
 def extract_choice_letter(text):
@@ -356,7 +356,7 @@ def evaluate(
 
     if accelerator.is_main_process:
         output_path = (
-            f"dcase_verylight_time_mask_epoch_1.json"
+            f"dcase_weak2_noise_epoch_1.json"
         )
 
         with open(
@@ -442,6 +442,7 @@ def evaluate(
             f"\nSaved results to {output_path}",
             flush=True,
         )
+        
 
     accelerator.wait_for_everyone()
 

@@ -98,7 +98,10 @@ PERTURBATION_SPECS: Dict[Perturbation, Dict[str, Dict]] = {
     
     # === ADDITIVE NOISE ===
     Perturbation.NOISE: {
+        "extraweak": {"sigma": 0.01},
         "weak": {"sigma": 0.02},
+        "weak2": {"sigma": 0.03},
+        "light": {"sigma": 0.05},
         "heavy": {"sigma": 0.3},
         "very_heavy": {"sigma": 0.5},
         "extreme": {"sigma": 0.6},
@@ -151,8 +154,11 @@ PERTURBATION_SPECS: Dict[Perturbation, Dict[str, Dict]] = {
     
     Perturbation.TIME_MASK: {
         "verylight": {"n_masks": 3, "max_width": 0.05},
+        "light1": {"n_masks": 1, "max_width": 0.08},
         "light": {"n_masks": 3, "max_width": 0.08},  # New: few short masks
         "light2": {"n_masks": 2, "max_width": 0.08}, 
+        "medium1": {"n_masks": 1, "max_width": 0.1},
+        "medium2": {"n_masks": 2, "max_width": 0.1},
         "medium": {"n_masks": 3, "max_width": 0.1},
         "heavy": {"n_masks": 5, "max_width": 0.15},
         "extreme": {"n_masks": 10, "max_width": 0.1},
@@ -1204,9 +1210,9 @@ if __name__ == "__main__":
 
 
     INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_no_audio_final.json"
-    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_light2_time_mask_final.json"
+    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_light_time_mask_final.json"
 
-    OUTPUT_AUDIO_DIR = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_audio/dcase_light2_time_mask"
+    OUTPUT_AUDIO_DIR = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_audio/dcase_light_time_mask"
     os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
 
     print("start")
@@ -1240,7 +1246,7 @@ if __name__ == "__main__":
 
 
     pert_type = Perturbation.TIME_MASK
-    setting = "light2"
+    setting = "light"
 
     
 
