@@ -464,7 +464,7 @@ def run_evaluation():
     accelerator = Accelerator()
     
     #data
-    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/combined_json/dcase_split_test.json") as f:
+    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/combined_json/dcase_split_validation.json") as f:
         data = json.load(f)
 
     # # baseline model
@@ -552,14 +552,14 @@ def run_evaluation():
     training_model = PeftModel.from_pretrained(
         training_model,
         "/data/not_backed_up/cosgrv/"
-            "af3_project/mdpo_runs/checkpoint-epoch-1"
+            "af3_project/mdpo_runs/checkpoint-epoch-5"
     )
 
     training_model.config.use_cache = True
 
     mdpo_processor = AutoProcessor.from_pretrained(
         "/data/not_backed_up/cosgrv/"
-            "af3_project/mdpo_runs/checkpoint-epoch-1"
+            "af3_project/mdpo_runs/checkpoint-epoch-5"
     )
 
     training_model, mdpo_loader = accelerator.prepare(
