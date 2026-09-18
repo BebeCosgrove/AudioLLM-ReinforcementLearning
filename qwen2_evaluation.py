@@ -30,11 +30,11 @@ CACHE_DIR = (
 DATA_PATH = (
     "/data/not_backed_up/cosgrv/af3_project/"
     "dcase_2025/2025_DCASE_AudioQA/"
-    "combined_json/dcase_split_test.json"
+    "combined_json/dcase_split_validation.json"
 )
 
 QWEN_CHECKPOINT = (
-    "/data/not_backed_up/cosgrv/af3_project/mdpo_runs/qwen2/light_noise/checkpoint-epoch-1"
+   "/data/not_backed_up/cosgrv/af3_project/mdpo_runs/qwen2/mixed/checkpoint-epoch-1"
 )
 
 def extract_choice_letter(text):

@@ -31,7 +31,14 @@ def evaluate(
     correct = 0
     results = []
 
-    for batch in loader:
+    for batch_idx, batch in enumerate(loader):
+
+        print(
+            f"[Rank {accelerator.process_index}] "
+            f"START batch {batch_idx} | "
+            f"IDs: {[ex['id'] for ex in batch]}",
+            flush=True,
+        )
         convs = []
         examples = []
 
@@ -120,6 +127,12 @@ def evaluate(
                     do_sample=False,
                 )
 
+            print(
+        f"[Rank {accelerator.process_index}] "
+        f"GENERATED batch {batch_idx}",
+        flush=True,
+    )
+
         if accelerator.is_main_process:
             print(
                 f"Generation: {time.time() - start:.2f}s",
@@ -145,28 +158,34 @@ def evaluate(
             is_correct = pred_letter == gt_letter
 
             results.append(
-    {
-        "id": ex["id"],
-        "question": ex["question"],
+            {
+                "id": ex["id"],
+                "question": ex["question"],
 
-        # subgroup information
-        "question_type": ex.get(
-            "question_type",
-            "unknown",
-        ),
-        "subset": infer_subset(ex),
+                # subgroup information
+                "question_type": ex.get(
+                    "question_type",
+                    "unknown",
+                ),
+                "subset": infer_subset(ex),
 
-        "answer": gt,
-        "prediction": pred,
-        "pred_letter": pred_letter,
-        "gt_letter": gt_letter,
-        "correct": is_correct,
-        "audio_url": ex["audio_url"],
-    }
-)
+                "answer": gt,
+                "prediction": pred,
+                "pred_letter": pred_letter,
+                "gt_letter": gt_letter,
+                "correct": is_correct,
+                "audio_url": ex["audio_url"],
+            }
 
+        )
             if is_correct:
                 correct += 1
+        print(
+                f"[Rank {accelerator.process_index}] "
+                f"FINISHED batch {batch_idx}",
+                flush=True,
+                )
+
 
     local_correct = torch.tensor(
         [correct],
@@ -180,8 +199,31 @@ def evaluate(
         dtype=torch.long,
     )
 
+    print(
+    f"[Rank {accelerator.process_index}] "
+    f"REACHED END OF LOOP — correct={local_correct.item()}, "
+    f"total={local_total.item()}",
+    flush=True,
+    )
+
+    print(
+        f"[Rank {accelerator.process_index}] ENTERING GATHER",
+        flush=True,
+    )
+
     global_correct = accelerator.gather(local_correct).sum().item()
+
+    print(
+        f"[Rank {accelerator.process_index}] FINISHED GATHER CORRECT",
+        flush=True,
+    )
+
     global_total = accelerator.gather(local_total).sum().item()
+
+    print(
+        f"[Rank {accelerator.process_index}] FINISHED GATHER TOTAL",
+        flush=True,
+    )
 
     all_results = gather_object(results)
 
@@ -468,136 +510,129 @@ def run_evaluation():
         data = json.load(f)
 
     # # baseline model
-    # baseline_loader = DataLoader(
-    #     data,
-    #     batch_size=BATCH_SIZE,
-    #     shuffle=False,
-    #     collate_fn=lambda x: x,
-    # )
-
-    # baseline_model = (
-    #     AudioFlamingo3ForConditionalGeneration.from_pretrained(
-    #         "nvidia/audio-flamingo-3-hf",
-    #         torch_dtype=torch.bfloat16,
-    #     )
-    # )
-
-
-
-    # baseline_processor = AutoProcessor.from_pretrained(
-    #     "nvidia/audio-flamingo-3-hf"
-    # )
-
-    
-
-    # baseline_model, baseline_loader = accelerator.prepare(
-    #     baseline_model,
-    #     baseline_loader,
-    # )
-
-    # unwrapped_model = accelerator.unwrap_model(baseline_model)
-
-    # baseline_accuracy = evaluate(
-    #     baseline_model,
-    #     unwrapped_model,
-    #     baseline_processor,
-    #     baseline_loader,
-    #     accelerator,
-    #     output_prefix="baseline",
-    # )
-
-    # accelerator.wait_for_everyone()
-
-    # del unwrapped_model
-    # del baseline_model
-    # del baseline_loader
-
-    # accelerator.free_memory()
-    # torch.cuda.empty_cache()
-
-    # data = data[:500]
-
-    # LONG_AUDIO_SECONDS = 30
-
-    # long_data = []
-
-    # for ex in data:
-    #     info = sf.info(ex["audio_url"])
-    #     if info.duration >= LONG_AUDIO_SECONDS:
-    #         long_data.append(ex)
-
-    # print(f"Original examples: {len(data)}")
-    # print(f"Long audio examples (>= {LONG_AUDIO_SECONDS}s): {len(long_data)}")
-
-    # print("Loaded data")
-    # print("Loading model")
-
-    #trained model
-    mdpo_loader = DataLoader(
+    baseline_loader = DataLoader(
         data,
         batch_size=BATCH_SIZE,
         shuffle=False,
         collate_fn=lambda x: x,
     )
 
-    training_model = (
+    baseline_model = (
         AudioFlamingo3ForConditionalGeneration.from_pretrained(
             "nvidia/audio-flamingo-3-hf",
             torch_dtype=torch.bfloat16,
         )
     )
 
+
+
+    baseline_processor = AutoProcessor.from_pretrained(
+        "nvidia/audio-flamingo-3-hf"
+    )
+
     
 
-    training_model = PeftModel.from_pretrained(
-        training_model,
-        "/data/not_backed_up/cosgrv/"
-            "af3_project/mdpo_runs/checkpoint-epoch-5"
+    baseline_model, baseline_loader = accelerator.prepare(
+        baseline_model,
+        baseline_loader,
     )
 
-    training_model.config.use_cache = True
+    unwrapped_model = accelerator.unwrap_model(baseline_model)
 
-    mdpo_processor = AutoProcessor.from_pretrained(
-        "/data/not_backed_up/cosgrv/"
-            "af3_project/mdpo_runs/checkpoint-epoch-5"
-    )
-
-    training_model, mdpo_loader = accelerator.prepare(
-        training_model,
-        mdpo_loader,
-    )
-
-    unwrapped_model = accelerator.unwrap_model(training_model)
-
-    mdpo_accuracy = evaluate(
-        training_model,
+    baseline_accuracy = evaluate(
+        baseline_model,
         unwrapped_model,
-        mdpo_processor,
-        mdpo_loader,
+        baseline_processor,
+        baseline_loader,
         accelerator,
-        output_prefix="mdpo_epoch1",
+        output_prefix="baseline",
     )
+
+    accelerator.wait_for_everyone()
+
+    del unwrapped_model
+    del baseline_model
+    del baseline_loader
+
+    accelerator.free_memory()
+    torch.cuda.empty_cache()
+
+    data = data[:500]
+
+    LONG_AUDIO_SECONDS = 30
+
+    long_data = []
+
+    for ex in data:
+        info = sf.info(ex["audio_url"])
+        if info.duration >= LONG_AUDIO_SECONDS:
+            long_data.append(ex)
+
+    print(f"Original examples: {len(data)}")
+    print(f"Long audio examples (>= {LONG_AUDIO_SECONDS}s): {len(long_data)}")
+
+    print("Loaded data")
+    print("Loading model")
+
+    #trained model
+    # mdpo_loader = DataLoader(
+    #     data,
+    #     batch_size=BATCH_SIZE,
+    #     shuffle=False,
+    #     collate_fn=lambda x: x,
+    # )
+
+    # training_model = (
+    #     AudioFlamingo3ForConditionalGeneration.from_pretrained(
+    #         "nvidia/audio-flamingo-3-hf",
+    #         torch_dtype=torch.bfloat16,
+    #     )
+    # )
+
+    
+
+    # training_model = PeftModel.from_pretrained(
+    #     training_model,
+    #     "/data/not_backed_up/cosgrv/"
+    #         "af3_project/mdpo_runs/reverse/checkpoint-epoch-2"
+    # )
+
+    # training_model.config.use_cache = True
+
+    # mdpo_processor = AutoProcessor.from_pretrained(
+    #     "/data/not_backed_up/cosgrv/"
+    #         "af3_project/mdpo_runs/reverse/checkpoint-epoch-2"
+    # )
+
+    # training_model, mdpo_loader = accelerator.prepare(
+    #     training_model,
+    #     mdpo_loader,
+    # )
+
+    # unwrapped_model = accelerator.unwrap_model(training_model)
+
+    # mdpo_accuracy = evaluate(
+    #     training_model,
+    #     unwrapped_model,
+    #     mdpo_processor,
+    #     mdpo_loader,
+    #     accelerator,
+    #     output_prefix="mdpo_epoch1",
+    # )
 
     if accelerator.is_main_process:
-#         print(
-#     "Baseline Overall Accuracy:",
-#     baseline_accuracy["overall_accuracy"],
-# )
+        print("Baseline Overall Accuracy:",
+            baseline_accuracy["overall_accuracy"])
 
-#         print(
-#             "Baseline Domain Average:",
-#             baseline_accuracy["domain_average_accuracy"],
-#         )
+        print("Baseline Domain Average:",
+            baseline_accuracy["domain_average_accuracy"])
 
-        print(
-            "mDPO Overall Accuracy:",
-            mdpo_accuracy["overall_accuracy"],
-        )
 
-        print(
-            "mDPO Domain Average:",
-            mdpo_accuracy["domain_average_accuracy"],
-        )
+        print("Baseline Temporal Accuracy:",
+            baseline_accuracy["accuracy_by_subset"]["Temporal"]["accuracy"])
+
+        print("Baseline Complex Accuracy:",
+            baseline_accuracy["accuracy_by_subset"]["Complex"]["accuracy"])
     
     
 

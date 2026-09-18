@@ -696,12 +696,12 @@ def run():
     # policy_model = get_peft_model(policy_model, lora_config)
 
 
-    CHECKPOINT_DIR = "/data/not_backed_up/cosgrv/af3_project/mdpo_runs/qwen2/light_noise"
+    CHECKPOINT_DIR = "/data/not_backed_up/cosgrv/af3_project/mdpo_runs/qwen2/mixed"
 
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 
-    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_weak2_noise_final.json") as f:
+    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_triple_mixed2_final.json") as f:
         data = json.load(f)
 
     # with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_val_no_audio_final.json") as f:

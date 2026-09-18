@@ -563,12 +563,12 @@ def run():
     
 
 
-    CHECKPOINT_DIR = "/data/not_backed_up/cosgrv/af3_project/mdpo_runs"
+    CHECKPOINT_DIR = "/data/not_backed_up/cosgrv/af3_project/mdpo_runs/reverse"
 
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 
-    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_no_audio_final.json") as f:
+    with open("/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_reverse_final.json") as f:
         data = json.load(f)
 
 

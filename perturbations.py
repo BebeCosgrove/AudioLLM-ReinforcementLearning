@@ -1209,121 +1209,119 @@ if __name__ == "__main__":
     print("after import")
 
 
-    INPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_no_audio_final.json"
-    OUTPUT_JSON = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_datasets/dcase_train_light_time_mask_final.json"
+    # ============================================================
+# TRIPLE MIXED PERTURBATION
+# Reverse + Random Noise + Frequency Masking
+# ============================================================
 
-    OUTPUT_AUDIO_DIR = "/data/not_backed_up/cosgrv/af3_project/dcase_2025/2025_DCASE_AudioQA/perturbed_audio/dcase_light_time_mask"
-    os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
+INPUT_JSON = (
+    "/data/not_backed_up/cosgrv/af3_project/dcase_2025/"
+    "2025_DCASE_AudioQA/perturbed_datasets/"
+    "dcase_train_no_audio_final.json"
+)
 
-    print("start")
+OUTPUT_JSON = (
+    "/data/not_backed_up/cosgrv/af3_project/dcase_2025/"
+    "2025_DCASE_AudioQA/perturbed_datasets/"
+    "dcase_train_triple_mixed2_final.json"
+)
 
-    with open(INPUT_JSON) as f:
-        print("opened json")
-        data = json.load(f)
+OUTPUT_AUDIO_DIR = (
+    "/data/not_backed_up/cosgrv/af3_project/dcase_2025/"
+    "2025_DCASE_AudioQA/perturbed_audio/"
+    "dcase_triple_mixed"
+)
 
-    print("loaded json")    
+os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
 
-    new_data = []
+print("start")
 
-    # SEED = 42
-    # rng = random.Random(SEED)
+with open(INPUT_JSON) as f:
+    print("opened json")
+    data = json.load(f)
 
-    # #shuffles data indices
-    # indices = list(range(len(data)))
-    # rng.shuffle(indices)
+print("loaded json")
 
-    # perturbation_assignments = {}
-
-    # perturbation_configs = [
-    #     (Perturbation.NO_AUDIO, None),
-    #     (Perturbation.TIME_MASK, "light"),
-    #     (Perturbation.NOISE, "weak"),
-    # ]
-
-    # for shuffled_position, original_index in enumerate(indices):
-    #     pert_type, setting = perturbation_configs[shuffled_position % 3]
-    #     perturbation_assignments[original_index] = (pert_type, setting)
+new_data = []
 
 
-    pert_type = Perturbation.TIME_MASK
-    setting = "light"
+# ------------------------------------------------------------
+# Create the three perturbation functions
+# ------------------------------------------------------------
 
-    
+# Each original observation will produce THREE new observations
+perturbation_configs = [
+    (Perturbation.REVERSE, "full"),
+    (Perturbation.NOISE, "weak"),
+    (Perturbation.FREQ_MASK, "heavy"),
+]
 
-    for i, item in enumerate(data):
-        if i % 100 == 0:
-            print(f"Processing {i}/{len(data)}")
 
-        audio_path = item["audio_url"]
+for i, item in enumerate(data):
 
-        try:
-            audio, _ = librosa.load(
-                audio_path,
-                sr=16000,
-                mono=True,
-            )
-        except Exception as e:
-            print(f"Failed to load {audio_path}: {e}")
-            continue
+    if i % 100 == 0:
+        print(f"Processing {i}/{len(data)}")
+
+    audio_path = item["audio_url"]
+
+    try:
+        audio, _ = librosa.load(
+            audio_path,
+            sr=16000,
+            mono=True,
+        )
+
+    except Exception as e:
+        print(f"Failed to load {audio_path}: {e}")
+        continue
+
+
+    # Create THREE observations from this original observation
+    for pert_type, setting in perturbation_configs:
 
         pert_fn = get_perturbation(
-                                    pert_type,
-                                    setting,
-                                    sr=16000,
-                                )
+            pert_type,
+            setting,
+            sr=16000,
+        )
 
+        # Apply ONLY this perturbation
         pert_audio = pert_fn(audio)
 
-
         stem = os.path.splitext(
-                os.path.basename(audio_path)
-            )[0]
+            os.path.basename(audio_path)
+        )[0]
 
         pert_path = os.path.join(
-                OUTPUT_AUDIO_DIR,
-                f"{stem}_{pert_type.name.lower()}.wav",
-            )
+            OUTPUT_AUDIO_DIR,
+            f"{stem}_{pert_type.name.lower()}.wav",
+        )
 
-        sf.write(pert_path, pert_audio, 16000)
-        
+        sf.write(
+            pert_path,
+            pert_audio,
+            16000,
+        )
+
+
+        # Make a NEW observation
         new_item = item.copy()
+
         new_item["perturbed_path"] = pert_path
         new_item["perturbation"] = pert_type.name
         new_item["perturbation_setting"] = setting
+
         new_data.append(new_item)
 
-        # for pert_type, setting in perturbation_configs:
-        #     pert_fn = get_perturbation(
-        #                 pert_type,
-        #                 setting,
-        #                 sr=16000,
-        #             )
-            
 
-        #     pert_audio = pert_fn(audio)
+# Save tripled dataset
+with open(OUTPUT_JSON, "w") as f:
+    json.dump(
+        new_data,
+        f,
+        indent=2,
+    )
 
-        #     stem = os.path.splitext(
-        #         os.path.basename(audio_path)
-        #     )[0]
-
-        #     pert_path = os.path.join(
-        #         OUTPUT_AUDIO_DIR,
-        #         f"{stem}_{pert_type.name.lower()}.wav",
-        #     )
-
-        #     sf.write(pert_path, pert_audio, 16000)
-
-        #     new_item = item.copy()
-        #     new_item["perturbed_path"] = pert_path
-        #     new_item["perturbation"] = pert_type.name
-        #     new_item["perturbation_setting"] = setting
-
-        #     new_data.append(new_item)
-        #     counts[pert_type.name] += 1
-
-    with open(OUTPUT_JSON, "w") as f:
-        json.dump(new_data, f, indent=2)
-
-    print(f"Saved {len(new_data)} examples")
-    # print("Perturbation counts:", counts)
-
+print(f"Original observations: {len(data)}")
+print(f"New observations: {len(new_data)}")
+print(f"Saved to: {OUTPUT_JSON}")
