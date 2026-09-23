@@ -231,7 +231,11 @@ def load_model(model_name, model_path):
             )
     model = cls.from_pretrained(model_path, torch_dtype=torch.bfloat16, trust_remote_code=True)
     model.config.use_cache = True
-    return model, AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
+    processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
+    if model_name == "af3":
+        # Match AdaptivePerturbation's negative-branch token appending.
+        processor.tokenizer.padding_side = "left"
+    return model, processor
 
 
 def encode(model_name, processor, examples, audios, device):
@@ -293,7 +297,10 @@ def run_condition(model_name, model, processor, loader, acc, perturbation, alpha
             neg = encode(model_name, processor, batch, perturbed, acc.device)
             with torch.inference_mode(), autocast():
                 embeds = model(**neg, output_hidden_states=True, return_dict=True).hidden_states[0]
-            assert embeds.shape[1] == inputs["input_ids"].shape[1], "clean/negative prompt lengths differ"
+            assert embeds.shape[:2] == neg["attention_mask"].shape, (
+                f"negative embeddings {tuple(embeds.shape[:2])} do not match "
+                f"negative attention mask {tuple(neg['attention_mask'].shape)}"
+            )
             processors = [ContrastiveLogits(
                 model, embeds.detach().clone(), neg["attention_mask"],
                 alpha, processor.tokenizer.eos_token_id, autocast,
@@ -430,7 +437,9 @@ def main():
 
     acc = Accelerator()
     data, _ = load_split(args.split, args.data_root, args.audio_root)
-    if args.limit:
+    if args.limit is not None:
+        if args.limit <= 0:
+            p.error("--limit must be positive")
         data = data[: args.limit]
     acc.print(f"{len(data)} examples from the {args.split} split")
 
@@ -439,7 +448,9 @@ def main():
     model, processor = load_model(args.model, model_path)
     model = model.to(acc.device).eval()
 
-    out_dir = HERE / "results" / args.model / args.split
+    # Keep diagnostics out of full-run resume and summary.
+    result_root = "diagnostics" if args.limit is not None else "results"
+    out_dir = HERE / result_root / args.model / args.split
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for perturbation, alpha in conditions:
@@ -450,9 +461,12 @@ def main():
         # A file that won't parse is a half-written one from a killed job, so redo it.
         if path.exists() and not args.overwrite:
             try:
-                json.loads(path.read_text(encoding="utf-8"))
-                acc.print(f"Skipping {label} (already done)")
-                continue
+                saved = json.loads(path.read_text(encoding="utf-8"))
+                saved_rows = {r.get("row") for r in saved.get("results", [])}
+                if saved_rows == {ex["row"] for ex in data}:
+                    acc.print(f"Skipping {label} (already done)")
+                    continue
+                acc.print(f"{label} has incomplete coverage, re-running")
             except json.JSONDecodeError:
                 acc.print(f"{label} is truncated, re-running")
 

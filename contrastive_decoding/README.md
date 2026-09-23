@@ -51,7 +51,9 @@ python contrastive_decoding/run_cd.py --summary
 ```
 
 Results land in `results/<model>/<split>/`. Re-running a command skips finished
-conditions, so an interrupted sweep resumes; `--overwrite` redoes them.
+conditions with complete row coverage, so an interrupted sweep resumes; `--overwrite` redoes them.
+Runs using `--limit` write to `diagnostics/<model>/<split>/`, separate from full
+results and the summary. Old partial result files are rerun automatically.
 
 **`--num_processes 4` matters.** At batch size 4 it reproduces her exact 1136-row totals
 (accelerate pads the last batch). Other process counts give valid accuracies but totals
@@ -85,8 +87,8 @@ average over two groups. That matches her result files.
   token per decode step (branch sync).
 - Qwen2-Audio pads **left**, so appending generated-token embeddings at the end of the
   negative sequence is correct.
-- Short runs are refused before writing; writes are atomic; a truncated file from a
-  killed job is re-run rather than skipped.
+- Writes require coverage of the requested rows and are atomic; incomplete or
+  truncated result files are rerun. Limited diagnostics have a separate directory.
 
 Not verified locally: a full forward/generate pass — the local GPU has 4 GB and
 transformers 4.57.0 has no AF3 class. Run the `--limit 8` smoke test first.
@@ -101,3 +103,28 @@ transformers 4.57.0 has no AF3 class. Run the `--limit 8` smoke test first.
   branch may be slow. The smoke test will show it.
 - Answers are free-form text parsed with `\b([A-D])\b`, not constrained decoding. That is
   her protocol; constraining it would measure something her baselines don't.
+
+## AF3 diagnostic before the sweep
+
+AF3 explicitly uses left padding, matching AdaptivePerturbation, and checks the
+negative embeddings against their own attention mask. The DCASE prompt,
+max-length padding, and silent-waveform `no_audio` condition are preserved.
+These changes still require a model run on the cluster for validation.
+
+Run from the repository root in the environment used for the AF3 baselines:
+
+```bash
+set -o pipefail
+python contrastive_decoding/run_cd.py --model af3 --split test --perturbation no_audio --alpha 0.5 --limit 4 --overwrite 2>&1 | tee af3_cd_diagnostic.log
+```
+
+Only after this succeeds, run:
+
+```bash
+accelerate launch --num_processes 4 contrastive_decoding/run_cd.py --model af3 --split test
+accelerate launch --num_processes 4 contrastive_decoding/run_cd.py --model af3 --split validation
+python contrastive_decoding/run_cd.py --summary
+```
+
+Check batch 0's `seq=` and `s/batch` before scheduling the sweep. If the diagnostic
+fails, collect `tail -n 40 af3_cd_diagnostic.log`. No diagnostic-file deletion is needed.
